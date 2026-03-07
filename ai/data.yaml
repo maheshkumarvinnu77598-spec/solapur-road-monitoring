@@ -1,0 +1,11 @@
+# YOLOv8 dataset configuration for Solapur Road Monitoring
+# Keep paths relative to this file or use absolute paths.
+
+train: dataset/images/train
+val: dataset/images/val
+
+nc: 3
+names:
+  - pothole
+  - road_damage
+  - water_logging

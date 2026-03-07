@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roleFromToken() {
+      return signedIn() && request.auth.token.role is string
+        ? request.auth.token.role
+        : '';
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        roleFromToken() == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isWorker() {
+      return signedIn() && roleFromToken() == 'worker';
+    }
+
+    function workerDocId() {
+      return isWorker() && request.auth.token.worker_doc_id is string
+        ? request.auth.token.worker_doc_id
+        : '';
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && (
+        request.auth.uid == uid || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /workers/{workerId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        (isWorker() && workerDocId() == workerId)
+      );
+
+      allow create: if isAdmin();
+
+      allow update: if isAdmin() || (
+        isWorker() &&
+        workerDocId() == workerId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'fcm_tokens',
+          'last_seen_at',
+          'photo_url',
+          'phone'
+        ])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+        request.resource.data.reporter_id == request.auth.uid;
+
+      allow update: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'report_count',
+          'priority',
+          'priority_escalated',
+          'timestamp'
+        ])
+      ) || (
+        signedIn() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'verify_fixed_count',
+          'verify_not_fixed_count',
+          'status',
+          'resolved_at',
+          'timestamp'
+        ])
+      ) || (
+        isWorker() &&
+        resource.data.assigned_worker == workerDocId() &&
+        request.resource.data.status != 'Resolved' &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'repair_image',
+          'started_at',
+          'resolved_at',
+          'sla_breach_flag',
+          'timestamp'
+        ])
+      );
+
+      allow delete: if isAdmin();
+
+      match /report_events/{eventId} {
+        allow read: if signedIn();
+        allow create: if isAdmin() || (
+          isWorker() &&
+          get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker == workerDocId()
+        );
+        allow update, delete: if false;
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if signedIn();
+        allow create: if isAdmin() || (
+          isWorker() &&
+          get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker == workerDocId()
+        );
+        allow update, delete: if false;
+      }
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        (isWorker() && resource.data.worker_id == workerDocId()) ||
+        resource.data.worker_id == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        isWorker() && request.resource.data.worker_id == workerDocId()
+      );
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && (
+        isAdmin() || resource.data.user_id == request.auth.uid
+      );
+
+      allow create: if signedIn();
+      allow update: if isAdmin() || (signedIn() && resource.data.user_id == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /counters/{counterId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /zones/{zoneId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
