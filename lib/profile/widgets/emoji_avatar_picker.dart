@@ -59,7 +59,7 @@ class EmojiAvatarPicker extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? Theme.of(context).colorScheme.primaryContainer
-                      : Colors.white,
+                      : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected

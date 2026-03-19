@@ -33,7 +33,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     setState(() => _loading = true);
 
     try {
-      await widget.authService.signInAdmin(
+      await widget.authService.signInWithEmail(
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );

@@ -14,10 +14,13 @@ class ReportModel {
     required this.status,
     required this.reporterId,
     required this.reportCount,
+    this.duplicateCount = 1,
+    this.supporterIds = const <String>[],
     required this.timestamp,
     this.assignedAt,
     this.startedAt,
-    this.resolvedAt,
+    this.underReviewAt,
+    this.completionTimestamp,
     this.slaBreachFlag = false,
     this.verifyFixedCount = 0,
     this.verifyNotFixedCount = 0,
@@ -25,6 +28,7 @@ class ReportModel {
     this.aiSeverity,
     this.aiBoxes = const <AiBox>[],
     this.assignedWorker,
+    this.assignedWorkerName,
     this.repairImage,
   });
 
@@ -38,12 +42,16 @@ class ReportModel {
   final String status;
   final String reporterId;
   final String? assignedWorker;
+  final String? assignedWorkerName;
   final String? repairImage;
   final int reportCount;
+  final int duplicateCount;
+  final List<String> supporterIds;
   final DateTime timestamp;
   final DateTime? assignedAt;
   final DateTime? startedAt;
-  final DateTime? resolvedAt;
+  final DateTime? underReviewAt;
+  final DateTime? completionTimestamp;
   final bool slaBreachFlag;
   final int verifyFixedCount;
   final int verifyNotFixedCount;
@@ -51,25 +59,53 @@ class ReportModel {
   final String? aiSeverity;
   final List<AiBox> aiBoxes;
 
+  bool get hasValidCoordinates {
+    return latitude.isFinite &&
+        longitude.isFinite &&
+        latitude.abs() <= 90 &&
+        longitude.abs() <= 180 &&
+        !(latitude == 0 && longitude == 0);
+  }
+
   factory ReportModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
+    final GeoPoint? location = data['location'] as GeoPoint?;
     return ReportModel(
-      id: data['report_id'] as String? ?? doc.id,
+      id: data['id'] as String? ?? data['report_id'] as String? ?? doc.id,
       category: data['category'] as String? ?? 'Unknown',
       description: data['description'] as String? ?? '',
       imageUrl: data['image_url'] as String? ?? '',
-      latitude: (data['latitude'] as num?)?.toDouble() ?? 0,
-      longitude: (data['longitude'] as num?)?.toDouble() ?? 0,
+      latitude:
+          location?.latitude ?? (data['latitude'] as num?)?.toDouble() ?? 0,
+      longitude:
+          location?.longitude ?? (data['longitude'] as num?)?.toDouble() ?? 0,
       priority: data['priority'] as String? ?? 'low',
       status: data['status'] as String? ?? 'Reported',
       reporterId: data['reporter_id'] as String? ?? '',
-      assignedWorker: data['assigned_worker'] as String?,
-      repairImage: data['repair_image'] as String?,
+      assignedWorker: data['assigned_worker_id'] as String?,
+      assignedWorkerName: data['assigned_worker_name'] as String?,
+      repairImage:
+          data['repair_image_url'] as String? ??
+          data['repair_image'] as String?,
       reportCount: (data['report_count'] as num?)?.toInt() ?? 1,
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      duplicateCount:
+          (data['duplicate_count'] as num?)?.toInt() ??
+          (data['report_count'] as num?)?.toInt() ??
+          1,
+      supporterIds:
+          ((data['supporter_ids'] as List<dynamic>?) ?? const <dynamic>[])
+              .whereType<String>()
+              .toList(growable: false),
+      timestamp:
+          (data['created_at'] as Timestamp?)?.toDate() ??
+          (data['timestamp'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
       assignedAt: (data['assigned_at'] as Timestamp?)?.toDate(),
       startedAt: (data['started_at'] as Timestamp?)?.toDate(),
-      resolvedAt: (data['resolved_at'] as Timestamp?)?.toDate(),
+      underReviewAt: (data['under_review_at'] as Timestamp?)?.toDate(),
+      completionTimestamp:
+          (data['completion_timestamp'] as Timestamp?)?.toDate() ??
+          (data['resolved_at'] as Timestamp?)?.toDate(),
       slaBreachFlag: data['sla_breach_flag'] as bool? ?? false,
       verifyFixedCount: (data['verify_fixed_count'] as num?)?.toInt() ?? 0,
       verifyNotFixedCount:

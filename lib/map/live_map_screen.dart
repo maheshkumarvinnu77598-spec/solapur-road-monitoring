@@ -1,15 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/report_model.dart';
+import '../reporting/report_detail_screen.dart';
 import '../reporting/report_repository.dart';
 import '../ui_theme/app_theme.dart';
 
 enum MapFilter { all, road, drainage, garbage, utility }
 
-enum StatusFilter { all, reported, assigned, inProgress, resolved }
+enum StatusFilter { all, reported, assigned, inProgress, underReview, fixed }
 
 class LiveMapScreen extends StatefulWidget {
   const LiveMapScreen({super.key, required this.repository});
@@ -21,12 +23,14 @@ class LiveMapScreen extends StatefulWidget {
 }
 
 class _LiveMapScreenState extends State<LiveMapScreen> {
-  static const ClusterManagerId _clusterId = ClusterManagerId('issues');
+  static const LatLng _defaultCenter = LatLng(17.6599, 75.9064);
 
+  final MapController _mapController = MapController();
   MapFilter _filter = MapFilter.all;
   StatusFilter _statusFilter = StatusFilter.all;
-  GoogleMapController? _controller;
   Timer? _debounce;
+  bool _isFetchingBounds = false;
+  String? _lastBoundsKey;
 
   List<ReportModel> _reports = <ReportModel>[];
   bool _loading = true;
@@ -40,17 +44,23 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
-    _controller?.dispose();
     super.dispose();
   }
 
   Future<void> _loadDefault() async {
-    await _loadBounds(
-      minLatitude: 17.45,
-      maxLatitude: 17.85,
-      minLongitude: 75.70,
-      maxLongitude: 76.10,
-    );
+    try {
+      await _loadBounds(
+        minLatitude: 17.45,
+        maxLatitude: 17.85,
+        minLongitude: 75.70,
+        maxLongitude: 76.10,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadBounds({
@@ -59,65 +69,77 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
     required double minLongitude,
     required double maxLongitude,
   }) async {
-    if (!mounted) {
+    final String boundsKey =
+        '${minLatitude.toStringAsFixed(3)}:'
+        '${maxLatitude.toStringAsFixed(3)}:'
+        '${minLongitude.toStringAsFixed(3)}:'
+        '${maxLongitude.toStringAsFixed(3)}';
+    if (!mounted || _isFetchingBounds || _lastBoundsKey == boundsKey) {
       return;
     }
+    _isFetchingBounds = true;
+    _lastBoundsKey = boundsKey;
     setState(() => _loading = true);
 
     try {
-      final data = await widget.repository.fetchReportsInBounds(
-        minLatitude: minLatitude,
-        maxLatitude: maxLatitude,
-        minLongitude: minLongitude,
-        maxLongitude: maxLongitude,
-      );
+      final List<ReportModel> data = await widget.repository
+          .fetchReportsInBounds(
+            minLatitude: minLatitude,
+            maxLatitude: maxLatitude,
+            minLongitude: minLongitude,
+            maxLongitude: maxLongitude,
+          );
       if (!mounted) {
         return;
       }
       setState(() => _reports = data);
     } finally {
+      _isFetchingBounds = false;
       if (mounted) {
         setState(() => _loading = false);
       }
     }
   }
 
-  Future<void> _onCameraIdle() async {
-    final GoogleMapController? controller = _controller;
-    if (controller == null) {
-      return;
+  Future<void> _reloadForVisibleBounds() async {
+    try {
+      final LatLngBounds bounds = _mapController.camera.visibleBounds;
+      await _loadBounds(
+        minLatitude: bounds.southWest.latitude,
+        maxLatitude: bounds.northEast.latitude,
+        minLongitude: bounds.southWest.longitude,
+        maxLongitude: bounds.northEast.longitude,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _loading = false);
     }
-    final LatLngBounds bounds = await controller.getVisibleRegion();
-    await _loadBounds(
-      minLatitude: bounds.southwest.latitude,
-      maxLatitude: bounds.northeast.latitude,
-      minLongitude: bounds.southwest.longitude,
-      maxLongitude: bounds.northeast.longitude,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final List<ReportModel> filtered = _reports
-        .where((ReportModel r) => _matchesFilter(r.category))
-        .where((ReportModel r) => _matchesStatusFilter(r.status))
+        .where((ReportModel report) => report.hasValidCoordinates)
+        .where((ReportModel report) => _matchesFilter(report.category))
+        .where((ReportModel report) => _matchesStatusFilter(report.status))
         .toList(growable: false);
 
-    final bool useClustering = filtered.length > 50;
-    final Set<Marker> markers = filtered
-        .map((ReportModel report) => _buildReportMarker(report, useClustering))
-        .toSet();
-    final Set<Circle> heatCircles = filtered.length > 500
-        ? <Circle>{}
+    final List<Marker> markers = filtered
+        .map((ReportModel report) => _buildReportMarker(report))
+        .toList(growable: false);
+    final List<CircleMarker> heatCircles = filtered.length > 500
+        ? const <CircleMarker>[]
         : _buildHeatmapCircles(filtered);
 
     return Column(
-      children: [
+      children: <Widget>[
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.all(8),
           child: Row(
-            children: [
+            children: <Widget>[
               _filterChip(MapFilter.all, 'All Issues'),
               _filterChip(MapFilter.road, 'Road Issues'),
               _filterChip(MapFilter.drainage, 'Drainage Issues'),
@@ -130,47 +152,22 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
-            children: [
+            children: <Widget>[
               _statusChip(StatusFilter.all, 'All Status'),
               _statusChip(StatusFilter.reported, 'Reported'),
               _statusChip(StatusFilter.assigned, 'Assigned'),
               _statusChip(StatusFilter.inProgress, 'In Progress'),
-              _statusChip(StatusFilter.resolved, 'Resolved'),
+              _statusChip(StatusFilter.underReview, 'Under Review'),
+              _statusChip(StatusFilter.fixed, 'Fixed'),
             ],
           ),
         ),
         Expanded(
           child: Stack(
-            children: [
-              RepaintBoundary(
-                child: GoogleMap(
-                  initialCameraPosition: const CameraPosition(
-                    target: LatLng(17.6599, 75.9064),
-                    zoom: 12,
-                  ),
-                  markers: markers,
-                  circles: heatCircles,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  clusterManagers: useClustering
-                      ? <ClusterManager>{
-                          ClusterManager(clusterManagerId: _clusterId),
-                        }
-                      : const <ClusterManager>{},
-                  onMapCreated: (GoogleMapController controller) {
-                    _controller = controller;
-                  },
-                  onCameraMove: (_) {
-                    _debounce?.cancel();
-                  },
-                  onCameraIdle: () {
-                    _debounce?.cancel();
-                    _debounce = Timer(const Duration(milliseconds: 350), () {
-                      _onCameraIdle();
-                    });
-                  },
-                ),
-              ),
+            children: <Widget>[
+              RepaintBoundary(child: _buildMap(markers, heatCircles)),
+              if (!_loading && filtered.isEmpty)
+                const _MapEmptyState(message: 'No reports available'),
               if (_loading)
                 const Align(
                   alignment: Alignment.topCenter,
@@ -184,6 +181,38 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildMap(List<Marker> markers, List<CircleMarker> heatCircles) {
+    try {
+      return FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _defaultCenter,
+          initialZoom: 12,
+          onPositionChanged: (position, hasGesture) {
+            if (!hasGesture) {
+              return;
+            }
+            _debounce?.cancel();
+            _debounce = Timer(
+              const Duration(milliseconds: 350),
+              _reloadForVisibleBounds,
+            );
+          },
+        ),
+        children: <Widget>[
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.example.solapur_road_monitoring',
+          ),
+          if (heatCircles.isNotEmpty) CircleLayer(circles: heatCircles),
+          MarkerLayer(markers: markers),
+        ],
+      );
+    } catch (_) {
+      return const _MapEmptyState(message: 'Map unavailable');
+    }
   }
 
   Widget _statusChip(StatusFilter filter, String label) {
@@ -240,69 +269,86 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
         return status == 'Assigned';
       case StatusFilter.inProgress:
         return status == 'In Progress';
-      case StatusFilter.resolved:
-        return status == 'Resolved' || status == 'Fixed';
+      case StatusFilter.underReview:
+        return status == 'Under Review';
+      case StatusFilter.fixed:
+        return status == 'Fixed' || status == 'Resolved';
     }
   }
 
-  double _markerHue(String status) {
+  Color _markerColor(String status) {
     switch (status) {
       case 'Pending':
       case 'Reported':
-        return BitmapDescriptor.hueRed;
+        return Colors.red;
       case 'Assigned':
-        return BitmapDescriptor.hueYellow;
+        return Colors.yellow.shade700;
       case 'In Progress':
-        return BitmapDescriptor.hueBlue;
+        return Colors.blue;
+      case 'Under Review':
+        return Colors.orange;
       case 'Resolved':
       case 'Fixed':
-        return BitmapDescriptor.hueGreen;
+        return Colors.green;
       default:
-        return BitmapDescriptor.hueYellow;
+        return Colors.red;
     }
   }
 
-  Marker _buildReportMarker(ReportModel report, bool useClustering) {
+  Marker _buildReportMarker(ReportModel report) {
+    if (!report.hasValidCoordinates) {
+      return Marker(
+        point: _defaultCenter,
+        width: 0,
+        height: 0,
+        child: const SizedBox.shrink(),
+      );
+    }
+
     return Marker(
-      markerId: MarkerId(report.id),
-      clusterManagerId: useClustering ? _clusterId : null,
-      position: LatLng(report.latitude, report.longitude),
-      icon: BitmapDescriptor.defaultMarkerWithHue(_markerHue(report.status)),
-      infoWindow: InfoWindow(
-        title: report.category,
-        snippet: '${report.priority.toUpperCase()} • ${report.status}',
+      point: LatLng(report.latitude, report.longitude),
+      width: 44,
+      height: 44,
+      child: GestureDetector(
+        onTap: () => _openDetails(report),
+        child: Icon(
+          Icons.location_pin,
+          color: _markerColor(report.status),
+          size: 40,
+        ),
       ),
-      onTap: () => _openDetails(report),
     );
   }
 
-  Set<Circle> _buildHeatmapCircles(List<ReportModel> reports) {
+  List<CircleMarker> _buildHeatmapCircles(List<ReportModel> reports) {
     final Map<String, List<ReportModel>> grouped =
         <String, List<ReportModel>>{};
+
     for (final ReportModel report in reports) {
+      if (!report.hasValidCoordinates) {
+        continue;
+      }
       final String key =
           '${report.latitude.toStringAsFixed(3)},${report.longitude.toStringAsFixed(3)}';
       grouped.putIfAbsent(key, () => <ReportModel>[]).add(report);
     }
 
-    final Set<Circle> circles = <Circle>{};
+    final List<CircleMarker> circles = <CircleMarker>[];
     grouped.forEach((key, group) {
-      final report = group.first;
+      final ReportModel report = group.first;
       final int density = group.length;
       final Color color = density >= 5
-          ? Colors.red.withAlpha(120)
+          ? Colors.red.withAlpha(90)
           : density >= 3
-          ? Colors.yellow.withAlpha(120)
-          : Colors.green.withAlpha(120);
+          ? Colors.yellow.withAlpha(90)
+          : Colors.green.withAlpha(90);
 
       circles.add(
-        Circle(
-          circleId: CircleId('heat-$key'),
-          center: LatLng(report.latitude, report.longitude),
-          radius: 60 + (density * 12),
-          fillColor: color,
-          strokeColor: Colors.transparent,
-          strokeWidth: 0,
+        CircleMarker(
+          point: LatLng(report.latitude, report.longitude),
+          radius: 18 + (density * 3).toDouble(),
+          color: color,
+          borderStrokeWidth: 0,
         ),
       );
     });
@@ -310,40 +356,41 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
   }
 
   void _openDetails(ReportModel report) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ReportDetailScreen(report: report, repository: widget.repository),
+      ),
+    );
+  }
+}
+
+class _MapEmptyState extends StatelessWidget {
+  const _MapEmptyState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                report.category,
-                style: Theme.of(context).textTheme.titleMedium,
+            children: <Widget>[
+              Icon(
+                Icons.map_outlined,
+                size: 40,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(height: 8),
-              Text(report.description),
-              const SizedBox(height: 8),
-              Text('Priority: ${report.priority}'),
-              Text('Status: ${report.status}'),
-              const SizedBox(height: 10),
-              if (report.imageUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    report.imageUrl,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              Text(message, style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

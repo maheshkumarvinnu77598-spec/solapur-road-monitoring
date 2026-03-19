@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../analytics/city_analytics_screen.dart';
 import '../notifications/screens/notifications_inbox_screen.dart';
 import '../repositories/notification_repository.dart';
 import '../map/live_map_screen.dart';
@@ -30,6 +31,7 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
   int _index = 0;
   final NotificationRepository _notificationRepository =
       NotificationRepository();
+  late final Stream<int> _unreadCountStream;
 
   static const List<String> _titles = <String>[
     'Home',
@@ -40,6 +42,14 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _unreadCountStream = _notificationRepository.unreadCount(
+      FirebaseAuth.instance.currentUser?.uid ?? '',
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
       CitizenHomeScreen(
@@ -48,6 +58,14 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => ReportWizardScreen(repository: widget.repository),
+            ),
+          );
+        },
+        onOpenAnalytics: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  CityAnalyticsScreen(repository: widget.repository),
             ),
           );
         },
@@ -63,25 +81,37 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
         title: Text(_titles[_index]),
         actions: [
           StreamBuilder<int>(
-            stream: _notificationRepository.unreadCount(
-              FirebaseAuth.instance.currentUser?.uid ?? '',
-            ),
+            stream: _unreadCountStream,
             builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
               final int unread = snapshot.data ?? 0;
               return Stack(
                 alignment: Alignment.topRight,
                 children: [
                   IconButton(
-                    onPressed: () {
-                      HapticService.lightTap();
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => NotificationsInboxScreen(
-                            notificationRepository: _notificationRepository,
-                            reportRepository: widget.repository,
+                    onPressed: () async {
+                      try {
+                        await HapticService.lightTap();
+                        if (!context.mounted) {
+                          return;
+                        }
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => NotificationsInboxScreen(
+                              notificationRepository: _notificationRepository,
+                              reportRepository: widget.repository,
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } catch (_) {
+                        if (!context.mounted) {
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Could not open notifications.'),
+                          ),
+                        );
+                      }
                     },
                     icon: const Icon(Icons.notifications_outlined),
                     tooltip: 'Notifications',
@@ -115,7 +145,18 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
             },
           ),
           IconButton(
-            onPressed: widget.onLogout,
+            onPressed: () async {
+              try {
+                await widget.onLogout();
+              } catch (_) {
+                if (!context.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Logout failed')));
+              }
+            },
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
           ),

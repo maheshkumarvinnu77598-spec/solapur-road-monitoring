@@ -269,10 +269,15 @@ exports.autoAssignReportByZone = onDocumentCreated('reports/{reportId}', async (
       continue;
     }
 
+    const workerDoc = await db.collection('workers').doc(assignedWorker).get();
+    const workerName = String(workerDoc.data()?.name || assignedWorker).trim();
+
     await db.collection('reports').doc(reportId).set({
-      assigned_worker: assignedWorker,
+      assigned_worker_id: assignedWorker,
+      assigned_worker_name: workerName,
       status: 'Assigned',
       assigned_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
 

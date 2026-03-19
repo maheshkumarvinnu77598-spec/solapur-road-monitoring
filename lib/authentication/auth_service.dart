@@ -1,55 +1,50 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/app_user.dart';
 
 class AuthService {
-  AuthService({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
-  }) : _auth = auth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance,
-       _functions = functions ?? FirebaseFunctions.instance;
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
 
   Stream<User?> authChanges() => _auth.authStateChanges();
 
   User? get currentUser => _auth.currentUser;
 
-  Future<void> signInWithEmail(String email, String password) {
-    return _auth.signInWithEmailAndPassword(email: email, password: password);
-  }
+  Future<void> signInWithEmail(String email, String password) async {
+    final String normalizedEmail = email.trim().toLowerCase();
+    final String normalizedPassword = password.trim();
 
-  Future<void> signInAdmin(String email, String password) async {
     final UserCredential credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
+      email: normalizedEmail,
+      password: normalizedPassword,
     );
+
     final User? user = credential.user;
     if (user == null) {
       throw FirebaseAuthException(
-        code: 'admin-login-failed',
-        message: 'Unable to sign in admin.',
+        code: 'invalid-credential',
+        message: 'Login did not return a Firebase user.',
       );
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+    final DocumentReference<Map<String, dynamic>> userRef = _firestore
         .collection('users')
-        .doc(user.uid)
-        .get();
-    final String role = (snapshot.data()?['role'] as String? ?? '')
-        .toLowerCase();
-    if (role != UserRole.admin.name) {
-      await _auth.signOut();
-      throw FirebaseAuthException(
-        code: 'not-admin',
-        message: 'This account is not an admin account.',
-      );
+        .doc(user.uid);
+    final DocumentSnapshot<Map<String, dynamic>> userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      await userRef.set(<String, dynamic>{
+        'uid': user.uid,
+        'email': normalizedEmail,
+        'name': user.displayName ?? 'New User',
+        'role': UserRole.citizen.name,
+        'created_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
   }
 
@@ -106,12 +101,23 @@ class AuthService {
         );
       }
 
+      final AppUser? workerByEmail = await _resolveWorkerByEmail(user.email);
+      if (workerByEmail != null) {
+        await _ensureWorkerUserDocument(workerByEmail, authUid: user.uid);
+        return AppUser(
+          uid: user.uid,
+          email: user.email,
+          role: UserRole.worker,
+          name: workerByEmail.name,
+          phone: workerByEmail.phone,
+          zone: workerByEmail.zone,
+        );
+      }
+
       final AppUser fallback = AppUser(
         uid: user.uid,
         email: user.email,
-        role: roleClaim == UserRole.admin.name
-            ? UserRole.admin
-            : UserRole.citizen,
+        role: UserRole.citizen,
         name: user.displayName,
       );
       await _firestore
@@ -124,69 +130,123 @@ class AuthService {
     return AppUser.fromMap(user.uid, snapshot.data()!);
   }
 
-  Future<void> verifyPhoneNumber({
-    required String phone,
-    required void Function(PhoneAuthCredential credential)
-    verificationCompleted,
-    required void Function(FirebaseAuthException e) verificationFailed,
-    required void Function(String verificationId, int? resendToken) codeSent,
-    required void Function(String verificationId) codeAutoRetrievalTimeout,
-  }) {
-    return _auth.verifyPhoneNumber(
-      phoneNumber: phone,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: verificationCompleted,
-      verificationFailed: verificationFailed,
-      codeSent: codeSent,
-      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
-    );
-  }
-
-  Future<void> signInWithPhoneCredential(PhoneAuthCredential credential) {
-    return _auth.signInWithCredential(credential);
-  }
-
   Future<AppUser?> workerLogin({
     required String workerId,
     required String password,
   }) async {
-    try {
-      final HttpsCallable callable = _functions.httpsCallable('workerLogin');
-      final HttpsCallableResult<dynamic> result = await callable.call(
-        <String, dynamic>{'workerId': workerId, 'password': password},
+    final String normalizedWorkerId = workerId.trim().toUpperCase();
+    if (normalizedWorkerId.isEmpty || password.trim().isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-credential',
+        message: 'Worker ID and password are required.',
       );
-      final Map<String, dynamic> payload = Map<String, dynamic>.from(
-        result.data as Map,
-      );
-      final String token = payload['token'] as String? ?? '';
-      if (token.isEmpty) {
-        return null;
-      }
+    }
 
-      await _auth.signInWithCustomToken(token);
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('workers')
+        .doc(normalizedWorkerId)
+        .get();
 
-      final Map<String, dynamic> worker = Map<String, dynamic>.from(
-        payload['worker'] as Map? ?? <String, dynamic>{},
+    if (!snapshot.exists) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'Worker ID not found.',
       );
+    }
 
-      return AppUser(
-        uid: worker['doc_id'] as String? ?? '',
-        email: worker['email'] as String?,
-        role: UserRole.worker,
-        name: worker['name'] as String?,
-        phone: worker['phone'] as String?,
-        zone: worker['zone'] as String?,
+    final Map<String, dynamic> workerData = snapshot.data()!;
+    final String storedPassword = (workerData['password'] as String? ?? '')
+        .trim();
+    if (storedPassword != password.trim()) {
+      throw FirebaseAuthException(
+        code: 'wrong-password',
+        message: 'Incorrect password.',
       );
-    } on FirebaseFunctionsException catch (e) {
-      if (e.code == 'resource-exhausted') {
-        throw FirebaseAuthException(
-          code: 'too-many-requests',
-          message: e.message ?? 'Too many attempts. Try again later.',
-        );
-      }
-      return null;
-    } on FirebaseAuthException {
+    }
+
+    final AppUser appUser = AppUser(
+      uid: snapshot.id,
+      email: workerData['email'] as String?,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+    return appUser;
+  }
+
+  Future<AppUser?> workerLoginWithId(String workerId) async {
+    final String normalizedWorkerId = workerId.trim().toUpperCase();
+    if (normalizedWorkerId.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-credential',
+        message: 'Worker ID is required.',
+      );
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('workers')
+        .doc(normalizedWorkerId)
+        .get();
+
+    if (!snapshot.exists) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'Worker ID not found.',
+      );
+    }
+
+    final Map<String, dynamic> workerData = snapshot.data()!;
+    return AppUser(
+      uid: snapshot.id,
+      email: workerData['email'] as String?,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+  }
+
+  Future<AppUser?> _resolveWorkerByEmail(String? email) async {
+    final String normalized = (email ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) {
       return null;
     }
+
+    final QuerySnapshot<Map<String, dynamic>> query = await _firestore
+        .collection('workers')
+        .where('email', isEqualTo: normalized)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      return null;
+    }
+
+    final Map<String, dynamic> workerData = query.docs.first.data();
+    return AppUser(
+      uid: query.docs.first.id,
+      email: normalized,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+  }
+
+  Future<void> _ensureWorkerUserDocument(
+    AppUser worker, {
+    required String authUid,
+  }) {
+    return _firestore.collection('users').doc(authUid).set(<String, dynamic>{
+      'uid': authUid,
+      'email': worker.email,
+      'name': worker.name,
+      'phone': worker.phone,
+      'role': UserRole.worker.name,
+      'zone': worker.zone,
+      'avatar_emoji': '',
+      'profile_picture': '',
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

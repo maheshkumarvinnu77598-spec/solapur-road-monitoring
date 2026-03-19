@@ -1,0 +1,75 @@
+{
+  "python.defaultInterpreterPath": "/Users/ajaykowkuntla/ai_env/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.exclude": [
+    "/Users/ajaykowkuntla/pothole_ai/**",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/ai/**",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/dataset/**",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/runs/**",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/solapur_admin_dashboard/**",
+    "**/.dart_tool/**",
+    "**/build/**",
+    "**/__pycache__/**"
+  ],
+  "python.analysis.extraPaths": [
+    "/Users/ajaykowkuntla/ai_env/lib/python3.10/site-packages"
+  ],
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/ios/Pods": true,
+    "**/android/.gradle": true,
+    "**/.flutter-plugins-dependencies": true,
+    "**/__pycache__": true,
+    "dataset": true,
+    "runs": true,
+    "ai": true,
+    "solapur_admin_dashboard": true
+  },
+  "search.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/ios/Pods": true,
+    "**/android/.gradle": true,
+    "**/.flutter-plugins-dependencies": true,
+    "**/__pycache__": true,
+    "dataset": true,
+    "runs": true,
+    "ai": true,
+    "solapur_admin_dashboard": true
+  },
+  "files.watcherExclude": {
+    "**/.dart_tool/**": true,
+    "**/build/**": true,
+    "**/ios/Pods/**": true,
+    "**/android/.gradle/**": true,
+    "**/__pycache__/**": true,
+    "**/dataset/**": true,
+    "**/runs/**": true,
+    "**/ai/**": true,
+    "**/solapur_admin_dashboard/**": true
+  },
+  "dart.analysisExcludedFolders": [
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/.dart_tool",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/build",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/ios/Pods",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/android/.gradle",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/dataset",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/runs",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/ai",
+    "/Users/ajaykowkuntla/Desktop/solapur_road_monitoring/solapur_admin_dashboard",
+    "/Users/ajaykowkuntla/pothole_ai"
+  ],
+  "problems.exclude": {
+    "**/.dart_tool/**": true,
+    "**/build/**": true,
+    "**/ios/Pods/**": true,
+    "**/android/.gradle/**": true,
+    "**/__pycache__/**": true,
+    "**/dataset/**": true,
+    "**/runs/**": true,
+    "**/ai/**": true,
+    "**/solapur_admin_dashboard/**": true
+  }
+}

@@ -1,4 +1,4 @@
-enum UserRole { citizen, worker, admin }
+enum UserRole { citizen, worker }
 
 class AppUser {
   const AppUser({
@@ -34,7 +34,6 @@ class AppUser {
       uid: uid,
       email: data['email'] as String?,
       role: switch (roleValue) {
-        'admin' => UserRole.admin,
         'worker' => UserRole.worker,
         _ => UserRole.citizen,
       },

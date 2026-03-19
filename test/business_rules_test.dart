@@ -4,13 +4,10 @@ import 'package:solapur_road_monitoring/reporting/report_config.dart';
 void main() {
   group('reporting business rules', () {
     test('priority mapping is correct for required categories', () {
-      expect(
-        priorityForCategory('Open Manhole / Drain Cover Damage'),
-        'critical',
-      );
+      expect(priorityForCategory('Open Manhole'), 'critical');
       expect(priorityForCategory('Pothole'), 'high');
-      expect(priorityForCategory('Water Logging / Flooded Street'), 'high');
-      expect(priorityForCategory('Garbage Dumping / Waste Overflow'), 'medium');
+      expect(priorityForCategory('Water Logging'), 'high');
+      expect(priorityForCategory('Garbage Dumping'), 'medium');
       expect(priorityForCategory('Street Light Not Working'), 'medium');
       expect(priorityForCategory('Damaged Footpath'), 'low');
       expect(priorityForCategory('Road Surface Damage'), 'low');
@@ -21,7 +18,8 @@ void main() {
         'Reported',
         'Assigned',
         'In Progress',
-        'Resolved',
+        'Under Review',
+        'Fixed',
       ]);
     });
 

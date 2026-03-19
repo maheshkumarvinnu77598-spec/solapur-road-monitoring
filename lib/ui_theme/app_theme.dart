@@ -21,6 +21,7 @@ class AppTheme {
           brightness: Brightness.light,
         ).copyWith(
           primary: AppPalette.primary,
+          secondary: AppPalette.accent,
           surface: AppPalette.card,
           onSurface: AppPalette.text,
           onPrimary: Colors.white,
@@ -30,10 +31,11 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppPalette.background,
+      dividerColor: AppPalette.card.withValues(alpha: 0.7),
       cardTheme: CardThemeData(
         color: AppPalette.card,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -49,44 +51,81 @@ class AppTheme {
         ),
       ),
       textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: AppPalette.text),
+        titleLarge: TextStyle(
+          color: AppPalette.text,
+          fontWeight: FontWeight.w700,
+        ),
         titleMedium: TextStyle(
           color: AppPalette.text,
           fontWeight: FontWeight.w600,
         ),
+        bodyLarge: TextStyle(color: AppPalette.text),
+        bodyMedium: TextStyle(color: AppPalette.text),
+        labelLarge: TextStyle(color: Colors.white),
       ),
     );
   }
 
   static ThemeData get dark {
-    final ColorScheme scheme =
-        ColorScheme.fromSeed(
-          seedColor: AppPalette.primary,
-          brightness: Brightness.dark,
-        ).copyWith(
-          primary: AppPalette.primary,
-          surface: const Color(0xFF2A3136),
-          onSurface: Colors.white,
-          onPrimary: Colors.white,
-        );
+    const Color scaffold = Color(0xFF121212);
+    const Color card = Color(0xFF1E1E1E);
+    const Color field = Color(0xFF262626);
+    final ColorScheme scheme = const ColorScheme.dark().copyWith(
+      primary: AppPalette.primary,
+      secondary: AppPalette.accent,
+      surface: card,
+      onSurface: Colors.white,
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+    );
 
     return ThemeData(
       useMaterial3: true,
+      brightness: Brightness.dark,
       colorScheme: scheme,
-      scaffoldBackgroundColor: const Color(0xFF1C2328),
+      scaffoldBackgroundColor: scaffold,
+      canvasColor: scaffold,
+      dividerColor: const Color(0xFF2C2C2C),
       cardTheme: CardThemeData(
-        color: const Color(0xFF2A3136),
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        color: card,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF3A4348),
+        fillColor: field,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppPalette.primary, width: 1.4),
+        ),
+        labelStyle: const TextStyle(color: Colors.white70),
+        hintStyle: const TextStyle(color: Colors.white60),
+      ),
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: Colors.white),
+        bodyMedium: TextStyle(color: Colors.white70),
+        titleLarge: TextStyle(color: Colors.white),
+        titleMedium: TextStyle(color: Colors.white),
+      ),
+      iconTheme: const IconThemeData(color: Colors.white70),
+      listTileTheme: const ListTileThemeData(
+        textColor: Colors.white,
+        iconColor: Colors.white70,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: field,
+        labelStyle: const TextStyle(color: Colors.white),
+        selectedColor: AppPalette.primary,
+        secondarySelectedColor: AppPalette.primary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        foregroundColor: Colors.white,
       ),
     );
   }

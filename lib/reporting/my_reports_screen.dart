@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../models/report_model.dart';
 import '../ui_theme/app_theme.dart';
+import '../utils/priority_utils.dart';
+import '../utils/resilient_ui.dart';
 import 'report_config.dart';
 import 'report_detail_screen.dart';
 import 'report_repository.dart';
@@ -23,6 +25,11 @@ class MyReportsScreen extends StatelessWidget {
     return StreamBuilder<List<ReportModel>>(
       stream: repository.myReports(reporterId),
       builder: (BuildContext context, AsyncSnapshot<List<ReportModel>> snapshot) {
+        if (snapshot.hasError) {
+          return const Center(
+            child: Text('Unable to load reports right now. Please try again.'),
+          );
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -35,90 +42,103 @@ class MyReportsScreen extends StatelessWidget {
 
         final List<ReportModel> reports = snapshot.data!;
         if (reports.isEmpty) {
-          return const Center(child: Text('No reports yet.'));
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: DemoEmptyState(
+              message: 'No reports available',
+              icon: Icons.inbox_outlined,
+            ),
+          );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: reports.length,
-          itemBuilder: (BuildContext context, int index) {
-            final ReportModel report = reports[index];
-            return Card(
-              child: ListTile(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ReportDetailScreen(
-                        report: report,
-                        repository: repository,
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: ListView.builder(
+            key: ValueKey<int>(reports.length),
+            padding: const EdgeInsets.all(12),
+            itemCount: reports.length,
+            itemBuilder: (BuildContext context, int index) {
+              final ReportModel report = reports[index];
+              final Color priorityColor = colorForPriority(report.priority);
+              return Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReportDetailScreen(
+                          report: report,
+                          repository: repository,
+                        ),
                       ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SizedBox(
+                          height: 72,
+                          width: 72,
+                          child: DemoNetworkImage(
+                            imageUrl: report.imageUrl,
+                            height: 72,
+                            width: 72,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                report.category,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${report.status} • ${DateFormat('dd MMM, hh:mm a').format(report.timestamp)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Location: ${report.latitude.toStringAsFixed(5)}, ${report.longitude.toStringAsFixed(5)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Chip(
+                          label: Text(
+                            report.priority.toUpperCase(),
+                            style: TextStyle(
+                              color:
+                                  ThemeData.estimateBrightnessForColor(
+                                        priorityColor,
+                                      ) ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                          ),
+                          backgroundColor: priorityColor,
+                        ),
+                      ],
                     ),
-                  );
-                },
-                leading: CircleAvatar(
-                  backgroundColor: _statusColor(report.status).withAlpha(40),
-                  child: Icon(
-                    _iconForCategory(report.category),
-                    color: _statusColor(report.status),
-                    size: 20,
                   ),
                 ),
-                title: Text(report.category),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${report.status} • ${_timeAgo(report.timestamp)}'),
-                    Text(
-                      'Support: ${report.reportCount} • ${DateFormat('dd MMM, hh:mm a').format(report.timestamp)}',
-                    ),
-                  ],
-                ),
-                trailing: Chip(
-                  label: Text(
-                    report.priority.toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  backgroundColor: colorForPriority(report.priority),
-                ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'Reported':
-      case 'Pending':
-        return Colors.amber.shade700;
-      case 'Assigned':
-        return Colors.blue;
-      case 'In Progress':
-        return Colors.orange;
-      case 'Resolved':
-      case 'Fixed':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _iconForCategory(String category) {
-    final match = issueCategories.where((i) => i.name == category);
-    return match.isEmpty ? Icons.report_problem_outlined : match.first.icon;
-  }
-
-  String _timeAgo(DateTime time) {
-    final Duration diff = DateTime.now().difference(time);
-    if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
-    }
-    if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
-    }
-    return '${diff.inMinutes}m ago';
   }
 }
 
@@ -129,14 +149,16 @@ class StatusTimeline extends StatelessWidget {
     required this.reportedAt,
     this.assignedAt,
     this.startedAt,
-    this.resolvedAt,
+    this.underReviewAt,
+    this.completionTimestamp,
   });
 
   final String status;
   final DateTime reportedAt;
   final DateTime? assignedAt;
   final DateTime? startedAt;
-  final DateTime? resolvedAt;
+  final DateTime? underReviewAt;
+  final DateTime? completionTimestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +169,8 @@ class StatusTimeline extends StatelessWidget {
       reportedAt,
       assignedAt,
       startedAt,
-      resolvedAt,
+      underReviewAt,
+      completionTimestamp,
     ];
 
     return Column(
@@ -183,6 +206,9 @@ class _ReportCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color skeleton = Theme.of(
+      context,
+    ).colorScheme.surface.withValues(alpha: 0.8);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -192,7 +218,7 @@ class _ReportCardSkeleton extends StatelessWidget {
               height: 36,
               width: 36,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: skeleton,
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
@@ -201,9 +227,9 @@ class _ReportCardSkeleton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 12, color: Colors.white),
+                  Container(height: 12, color: skeleton),
                   const SizedBox(height: 8),
-                  Container(height: 10, width: 180, color: Colors.white),
+                  Container(height: 10, width: 180, color: skeleton),
                 ],
               ),
             ),

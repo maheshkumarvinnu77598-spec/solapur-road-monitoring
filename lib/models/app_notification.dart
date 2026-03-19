@@ -8,6 +8,7 @@ class AppNotification {
     required this.body,
     required this.read,
     required this.createdAt,
+    required this.type,
     this.reportId,
   });
 
@@ -18,15 +19,17 @@ class AppNotification {
   final String? reportId;
   final bool read;
   final DateTime createdAt;
+  final String type;
 
   factory AppNotification.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return AppNotification(
-      id: doc.id,
+      id: data['id'] as String? ?? doc.id,
       userId: data['user_id'] as String? ?? '',
-      title: data['title'] as String? ?? 'Notification',
-      body: data['body'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      body: data['message'] as String? ?? data['body'] as String? ?? '',
       reportId: data['report_id'] as String?,
+      type: data['type'] as String? ?? 'Report Status Updated',
       read: (data['read'] as bool?) ?? (data['is_read'] as bool?) ?? false,
       createdAt:
           (data['created_at'] as Timestamp?)?.toDate() ??

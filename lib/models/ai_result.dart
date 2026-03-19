@@ -31,12 +31,16 @@ class AiResult {
     required this.severity,
     required this.confidence,
     required this.boxes,
+    this.detectedLabel,
+    this.isFallback = false,
   });
 
   final String category;
   final String severity;
   final double confidence;
   final List<AiBox> boxes;
+  final String? detectedLabel;
+  final bool isFallback;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -44,6 +48,8 @@ class AiResult {
       'severity': severity,
       'confidence': confidence,
       'boxes': boxes.map((AiBox b) => b.toMap()).toList(growable: false),
+      'detectedLabel': detectedLabel,
+      'isFallback': isFallback,
     };
   }
 
@@ -57,6 +63,8 @@ class AiResult {
           .whereType<Map<String, dynamic>>()
           .map(AiBox.fromMap)
           .toList(growable: false),
+      detectedLabel: map['detectedLabel'] as String?,
+      isFallback: map['isFallback'] as bool? ?? false,
     );
   }
 }

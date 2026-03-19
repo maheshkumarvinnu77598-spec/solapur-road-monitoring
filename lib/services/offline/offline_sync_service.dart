@@ -71,6 +71,9 @@ class OfflineSyncService {
             reporterId: item.reporterId,
           );
 
+          if (await image.exists()) {
+            await image.delete();
+          }
           await _queue.deleteById(item.id!);
         } catch (_) {
           // Keep queued item for next sync attempt.

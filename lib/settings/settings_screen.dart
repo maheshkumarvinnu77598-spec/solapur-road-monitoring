@@ -2,12 +2,13 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../support/help_support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -151,11 +152,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (_pickedPhoto != null) {
         final String path =
             'profiles/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final UploadTask uploadTask = FirebaseStorage.instance
-            .ref(path)
-            .putFile(File(_pickedPhoto!.path));
-        final TaskSnapshot snap = await uploadTask;
-        photoUrl = await snap.ref.getDownloadURL();
+        final SupabaseClient supabase = Supabase.instance.client;
+        await supabase.storage
+            .from('report-images')
+            .upload(
+              path,
+              File(_pickedPhoto!.path),
+              fileOptions: const FileOptions(
+                cacheControl: '3600',
+                upsert: false,
+                contentType: 'image/jpeg',
+              ),
+            );
+        photoUrl = supabase.storage.from('report-images').getPublicUrl(path);
       }
 
       await FirebaseFirestore.instance
@@ -204,18 +213,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
   }
 
-  Future<void> _contactSupport() async {
-    final Uri mailTo = Uri.parse(
-      'mailto:support@solapurmonitoring.local?subject=Solapur%20Road%20Monitoring%20Support',
-    );
-    if (!await launchUrl(mailTo)) {
-      if (!mounted) {
-        return;
-      }
-      _show('Unable to open support email', isError: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -229,101 +226,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text(
-          'Profile Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundImage: _pickedPhoto != null
-                  ? FileImage(File(_pickedPhoto!.path))
-                  : (_existingPhotoUrl.isNotEmpty
-                            ? NetworkImage(_existingPhotoUrl)
-                            : null)
-                        as ImageProvider<Object>?,
-              child: _pickedPhoto == null && _existingPhotoUrl.isEmpty
-                  ? const Icon(Icons.person_outline)
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            OutlinedButton.icon(
-              onPressed: _pickProfilePhoto,
-              icon: const Icon(Icons.photo_camera_outlined),
-              label: const Text('Change Profile Image'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _nameCtrl,
-          decoration: const InputDecoration(labelText: 'Name'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _phoneCtrl,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'Phone'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _emailCtrl,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Email'),
-        ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Show phone number in profile'),
-          value: _phoneVisible,
-          onChanged: (bool value) => setState(() => _phoneVisible = value),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Notification Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Enable notifications'),
-          value: _notify,
-          onChanged: (bool value) => setState(() => _notify = value),
-        ),
-        const Divider(),
-        const Text(
-          'Privacy & Permissions',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Location permission status'),
-          subtitle: Text(_locationStatus),
-          trailing: IconButton(
-            onPressed: _refreshLocationStatus,
-            icon: const Icon(Icons.refresh),
+        _section(context, 'Account Settings', <Widget>[
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundImage: _pickedPhoto != null
+                    ? FileImage(File(_pickedPhoto!.path))
+                    : (_existingPhotoUrl.isNotEmpty
+                              ? NetworkImage(_existingPhotoUrl)
+                              : null)
+                          as ImageProvider<Object>?,
+                child: _pickedPhoto == null && _existingPhotoUrl.isEmpty
+                    ? const Icon(Icons.person_outline)
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: _pickProfilePhoto,
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('Change Profile Image'),
+              ),
+            ],
           ),
-        ),
-        const ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('App Preferences'),
-          subtitle: Text('Theme mode is available from app preferences.'),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('App Version'),
-          subtitle: Text(_appVersion),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Support'),
-          subtitle: const Text('Contact support team'),
-          trailing: IconButton(
-            onPressed: _contactSupport,
-            icon: const Icon(Icons.support_agent_outlined),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: 'Name'),
           ),
-        ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Phone'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'Email'),
+          ),
+        ]),
+        _section(context, 'App Settings', <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Enable notifications'),
+            value: _notify,
+            onChanged: (bool value) => setState(() => _notify = value),
+          ),
+          const ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('Theme mode'),
+            subtitle: Text('Change theme from the profile page.'),
+          ),
+        ]),
+        _section(context, 'Permissions', <Widget>[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Location permission status'),
+            subtitle: Text(_locationStatus),
+            trailing: IconButton(
+              onPressed: _refreshLocationStatus,
+              icon: const Icon(Icons.refresh),
+            ),
+          ),
+        ]),
+        _section(context, 'Help & Support', <Widget>[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Open Help Center'),
+            subtitle: const Text(
+              'FAQ, contact admin, support inbox, and app issue reporting',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const HelpSupportScreen(),
+                ),
+              );
+            },
+          ),
+        ]),
+        _section(context, 'Privacy', <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show phone number in profile'),
+            value: _phoneVisible,
+            onChanged: (bool value) => setState(() => _phoneVisible = value),
+          ),
+        ]),
+        _section(context, 'About', <Widget>[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('App Version'),
+            subtitle: Text(_appVersion),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Support System'),
+            subtitle: const Text(
+              'In-app help desk connected directly to the admin dashboard.',
+            ),
+          ),
+        ]),
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _saving ? null : () => _save(uid),
@@ -336,6 +342,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : const Text('Save Settings'),
         ),
       ],
+    );
+  }
+
+  Widget _section(BuildContext context, String title, List<Widget> children) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            ...children,
+          ],
+        ),
+      ),
     );
   }
 }

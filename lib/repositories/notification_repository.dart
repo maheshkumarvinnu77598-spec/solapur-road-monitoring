@@ -12,7 +12,7 @@ class NotificationRepository {
     return _firestore
         .collection('notifications')
         .where('user_id', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
+        .orderBy('created_at', descending: true)
         .snapshots()
         .map(
           (QuerySnapshot<Map<String, dynamic>> snap) =>
@@ -37,7 +37,11 @@ class NotificationRepository {
 
   Future<void> markRead(String notificationId) {
     return _firestore.collection('notifications').doc(notificationId).set(
-      <String, dynamic>{'read': true, 'is_read': true},
+      <String, dynamic>{
+        'read': true,
+        'is_read': true,
+        'updated_at': FieldValue.serverTimestamp(),
+      },
       SetOptions(merge: true),
     );
   }

@@ -1,12 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui_theme/app_theme.dart';
 import '../auth_service.dart';
-import 'admin_login_screen.dart';
-import 'otp_screen.dart';
 import 'signup_screen.dart';
-import 'worker_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.authService});
@@ -21,17 +19,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
-  final TextEditingController _phoneCtrl = TextEditingController();
 
   bool _loading = false;
-  bool _sendingOtp = false;
   bool _hidePassword = true;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -46,78 +41,35 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null || !mounted) {
+        return;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+      final String role = (snapshot.data()?['role'] as String? ?? 'citizen')
+          .toLowerCase();
+      if (!mounted) {
+        return;
+      }
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else if (role == 'worker') {
+        Navigator.pushReplacementNamed(context, '/worker');
+      } else {
+        Navigator.pushReplacementNamed(context, '/citizen');
+      }
     } on FirebaseAuthException catch (e) {
-      _show(e.message ?? 'Login failed', isError: true);
+      _show(e.message ?? 'Login failed.', isError: true);
     } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
   }
-
-  Future<void> _sendOtp() async {
-    final String phone = _phoneCtrl.text.trim();
-    if (!_isE164(phone)) {
-      _show('Use phone format like +919876543210', isError: true);
-      return;
-    }
-
-    setState(() => _sendingOtp = true);
-    try {
-      await widget.authService.verifyPhoneNumber(
-        phone: phone,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          await widget.authService.signInWithPhoneCredential(credential);
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          _show(_mapPhoneError(e), isError: true);
-          if (mounted) {
-            setState(() => _sendingOtp = false);
-          }
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          if (mounted) {
-            setState(() => _sendingOtp = false);
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => OtpScreen(
-                  authService: widget.authService,
-                  verificationId: verificationId,
-                  phone: phone,
-                ),
-              ),
-            );
-          }
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _show('OTP auto retrieval timed out. Enter OTP manually.');
-          if (mounted) {
-            setState(() => _sendingOtp = false);
-          }
-        },
-      );
-    } catch (_) {
-      _show('Could not start phone verification.', isError: true);
-      if (mounted) {
-        setState(() => _sendingOtp = false);
-      }
-    }
-  }
-
-  String _mapPhoneError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'operation-not-allowed':
-        return 'Phone authentication is disabled in Firebase Console.';
-      case 'invalid-phone-number':
-        return 'Invalid phone number.';
-      case 'too-many-requests':
-        return 'Too many attempts. Try again later.';
-      default:
-        return e.message ?? 'Phone verification failed.';
-    }
-  }
-
-  bool _isE164(String phone) => RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone);
 
   void _show(String msg, {bool isError = false}) {
     if (!mounted) {
@@ -216,39 +168,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text('Login'),
                           ),
                           const SizedBox(height: 10),
-                          const Row(
-                            children: [
-                              Expanded(child: Divider()),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('OR'),
-                              ),
-                              Expanded(child: Divider()),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _phoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone Number (+91...)',
-                              prefixIcon: Icon(Icons.phone_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          FilledButton.tonal(
-                            onPressed: _sendingOtp ? null : _sendOtp,
-                            child: _sendingOtp
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Send OTP'),
-                          ),
-                          const SizedBox(height: 10),
                           Wrap(
                             alignment: WrapAlignment.spaceBetween,
                             children: [
@@ -266,27 +185,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => WorkerLoginScreen(
-                                        authService: widget.authService,
-                                      ),
-                                    ),
-                                  );
+                                  Navigator.pushNamed(context, '/worker');
                                 },
                                 child: const Text('Worker Login'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => AdminLoginScreen(
-                                        authService: widget.authService,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Admin Login'),
                               ),
                             ],
                           ),
