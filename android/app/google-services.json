@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "94080701473",
+    "project_id": "solapur-road-monitoring",
+    "storage_bucket": "solapur-road-monitoring.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:94080701473:android:56a39eb44cc6568f177f60",
+        "android_client_info": {
+          "package_name": "com.example.solapur_road_monitoring"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDh2QTNWyQ88piHmmVnLpRV5tPoWiEHJH4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
