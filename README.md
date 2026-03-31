@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # solapur_road_monitoring
 
 A new Flutter project.
@@ -28,3 +29,7 @@ uvicorn ai_training_workspace.api:app --host 0.0.0.0 --port 8000 --reload
 Use a clean environment on Windows instead of reusing a `.venv` from another machine.
 =======
 >>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
+=======
+# solapur-road-monitoring
+MIT WPU SAMVED  HACK-a-Thon 
+>>>>>>> 26b375b7904ef7400a9cc19dbf0ad42b0a94cc2c
