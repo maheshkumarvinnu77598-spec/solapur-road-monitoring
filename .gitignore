@@ -12,11 +12,14 @@
 .swiftpm/
 migrate_working_dir/
 
+<<<<<<< HEAD
 venv/
 __pycache__/
 *.pyc
 .env
 
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 # IntelliJ related
 *.iml
 *.ipr

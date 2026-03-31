@@ -1,11 +1,19 @@
+<<<<<<< HEAD
+=======
+import 'package:cloud_firestore/cloud_firestore.dart';
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui_theme/app_theme.dart';
 import '../auth_service.dart';
+<<<<<<< HEAD
 import 'otp_screen.dart';
 import 'signup_screen.dart';
 import 'worker_login_screen.dart';
+=======
+import 'signup_screen.dart';
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.authService});
@@ -20,17 +28,25 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
+<<<<<<< HEAD
   final TextEditingController _phoneCtrl = TextEditingController();
 
   bool _loading = false;
   bool _sendingOtp = false;
+=======
+
+  bool _loading = false;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   bool _hidePassword = true;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+<<<<<<< HEAD
     _phoneCtrl.dispose();
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     super.dispose();
   }
 
@@ -45,8 +61,34 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );
+<<<<<<< HEAD
     } on FirebaseAuthException catch (e) {
       _show(e.message ?? 'Login failed', isError: true);
+=======
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null || !mounted) {
+        return;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+      final String role = (snapshot.data()?['role'] as String? ?? 'citizen')
+          .toLowerCase();
+      if (!mounted) {
+        return;
+      }
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else if (role == 'worker') {
+        Navigator.pushReplacementNamed(context, '/worker');
+      } else {
+        Navigator.pushReplacementNamed(context, '/citizen');
+      }
+    } on FirebaseAuthException catch (e) {
+      _show(e.message ?? 'Login failed.', isError: true);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -54,6 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+<<<<<<< HEAD
   Future<void> _sendOtp() async {
     final String phone = _phoneCtrl.text.trim();
     if (!_isE164(phone)) {
@@ -118,6 +161,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isE164(String phone) => RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone);
 
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   void _show(String msg, {bool isError = false}) {
     if (!mounted) {
       return;
@@ -215,6 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text('Login'),
                           ),
                           const SizedBox(height: 10),
+<<<<<<< HEAD
                           const Row(
                             children: [
                               Expanded(child: Divider()),
@@ -248,6 +294,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text('Send OTP'),
                           ),
                           const SizedBox(height: 10),
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
                           Wrap(
                             alignment: WrapAlignment.spaceBetween,
                             children: [
@@ -265,6 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               TextButton(
                                 onPressed: () {
+<<<<<<< HEAD
                                   Navigator.of(context).push(
                                     MaterialPageRoute<void>(
                                       builder: (_) => WorkerLoginScreen(
@@ -272,6 +321,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                   );
+=======
+                                  Navigator.pushNamed(context, '/worker');
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
                                 },
                                 child: const Text('Worker Login'),
                               ),

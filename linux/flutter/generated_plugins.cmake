@@ -4,6 +4,11 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_linux
+<<<<<<< HEAD
+=======
+  gtk
+  printing
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   url_launcher_linux
 )
 

@@ -9,6 +9,17 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+<<<<<<< HEAD
+=======
+analyzer:
+  exclude:
+    - build/**
+    - .dart_tool/**
+    - ios/Pods/**
+    - android/.gradle/**
+    - '**/*.g.dart'
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

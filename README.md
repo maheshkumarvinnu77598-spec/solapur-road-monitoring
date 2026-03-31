@@ -15,6 +15,7 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+<<<<<<< HEAD
 
 ## AI Backend
 
@@ -25,3 +26,5 @@ uvicorn ai_training_workspace.api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Use a clean environment on Windows instead of reusing a `.venv` from another machine.
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c

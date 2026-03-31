@@ -24,10 +24,17 @@ class AppNotification {
   factory AppNotification.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return AppNotification(
+<<<<<<< HEAD
       id: doc.id,
       userId: data['user_id'] as String? ?? '',
       title: data['title'] as String? ?? 'Notification',
       body: data['body'] as String? ?? '',
+=======
+      id: data['id'] as String? ?? doc.id,
+      userId: data['user_id'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      body: data['message'] as String? ?? data['body'] as String? ?? '',
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       reportId: data['report_id'] as String?,
       type: data['type'] as String? ?? 'Report Status Updated',
       read: (data['read'] as bool?) ?? (data['is_read'] as bool?) ?? false,

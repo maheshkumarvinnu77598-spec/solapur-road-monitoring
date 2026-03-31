@@ -3,8 +3,13 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_performance/firebase_performance.dart';
+<<<<<<< HEAD
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:geolocator/geolocator.dart';
+=======
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
 import '../models/duplicate_match.dart';
 import '../models/report_model.dart';
@@ -14,6 +19,7 @@ import 'report_config.dart';
 class ReportRepository {
   ReportRepository({
     FirebaseFirestore? firestore,
+<<<<<<< HEAD
     FirebaseStorage? storage,
     NotificationService? notifications,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -22,6 +28,13 @@ class ReportRepository {
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+=======
+    NotificationService? notifications,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _notifications = notifications ?? NotificationService();
+
+  final FirebaseFirestore _firestore;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   final NotificationService _notifications;
 
   CollectionReference<Map<String, dynamic>> get _reports =>
@@ -104,7 +117,13 @@ class ReportRepository {
             .map(ReportModel.fromDoc)
             .where(
               (ReportModel r) =>
+<<<<<<< HEAD
                   r.longitude >= minLongitude && r.longitude <= maxLongitude,
+=======
+                  r.hasValidCoordinates &&
+                  r.longitude >= minLongitude &&
+                  r.longitude <= maxLongitude,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
             )
             .toList(growable: false);
         items.addAll(filtered);
@@ -123,11 +142,18 @@ class ReportRepository {
   Future<String> uploadReportImage(File imageFile, String reporterId) async {
     try {
       final String fileName =
+<<<<<<< HEAD
           'reports/$reporterId/${DateTime.now().millisecondsSinceEpoch}.jpg';
       final TaskSnapshot snap = await _storage.ref(fileName).putFile(imageFile);
       return snap.ref.getDownloadURL();
     } on FirebaseException {
       rethrow;
+=======
+          'reports/${DateTime.now().millisecondsSinceEpoch}_$reporterId.jpg';
+      return await _uploadImageToSupabase(imageFile, fileName);
+    } catch (_) {
+      throw Exception('Image upload failed');
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     }
   }
 
@@ -151,7 +177,11 @@ class ReportRepository {
     required String category,
     required double latitude,
     required double longitude,
+<<<<<<< HEAD
     double radiusMeters = 20,
+=======
+    double radiusMeters = 40,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   }) async {
     final QuerySnapshot<Map<String, dynamic>> nearbyReports = await _reports
         .where('category', isEqualTo: category)
@@ -229,15 +259,52 @@ class ReportRepository {
         (crowdScore * 0.1);
   }
 
+<<<<<<< HEAD
   Future<void> supportExistingReport(String reportId) async {
+=======
+  Future<void> supportExistingReport(
+    String reportId, {
+    String? citizenId,
+  }) async {
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     try {
       final DocumentReference<Map<String, dynamic>> ref = _reports.doc(
         reportId,
       );
+<<<<<<< HEAD
       await ref.update(<String, dynamic>{
         'report_count': FieldValue.increment(1),
         'timestamp': FieldValue.serverTimestamp(),
       });
+=======
+      final DocumentSnapshot<Map<String, dynamic>> snap = await ref.get();
+      final Map<String, dynamic> data = snap.data() ?? <String, dynamic>{};
+      final int currentCount =
+          (data['duplicate_count'] as num?)?.toInt() ??
+          (data['report_count'] as num?)?.toInt() ??
+          1;
+      final int nextCount = currentCount + 1;
+      final String category = data['category'] as String? ?? 'Unknown';
+      final bool slaBreached = data['sla_breach_flag'] as bool? ?? false;
+      final String nextPriority = smartPriority(
+        category: category,
+        duplicateCount: nextCount,
+        slaBreached: slaBreached,
+      );
+
+      await ref.update(<String, dynamic>{
+        'report_count': FieldValue.increment(1),
+        'duplicate_count': FieldValue.increment(1),
+        'duplicate_attached': true,
+        'priority': nextPriority,
+        if (citizenId != null && citizenId.isNotEmpty)
+          'supporter_ids': FieldValue.arrayUnion(<String>[citizenId]),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      if (citizenId != null && citizenId.isNotEmpty) {
+        await _updateCitizenReputation(userId: citizenId, citizenScoreDelta: 2);
+      }
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       await _applyPriorityEscalation(reportId);
     } on FirebaseException {
       rethrow;
@@ -275,19 +342,37 @@ class ReportRepository {
 
       final DocumentReference<Map<String, dynamic>> docRef = _reports.doc();
       await docRef.set(<String, dynamic>{
+<<<<<<< HEAD
+=======
+        'id': docRef.id,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'report_id': docRef.id,
         'category': category,
         'description': description,
         'image_url': imageUrl,
+<<<<<<< HEAD
+=======
+        'location': GeoPoint(latitude, longitude),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'latitude': latitude,
         'longitude': longitude,
         'priority': priority,
         'status': 'Reported',
         'reporter_id': reporterId,
+<<<<<<< HEAD
         'assigned_worker': null,
         'repair_image': null,
         'repair_image_url': null,
         'report_count': 1,
+=======
+        'assigned_worker_id': null,
+        'assigned_worker_name': null,
+        'repair_image': null,
+        'repair_image_url': null,
+        'report_count': 1,
+        'duplicate_count': 1,
+        'supporter_ids': <String>[reporterId],
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'assigned_at': null,
         'started_at': null,
         'under_review_at': null,
@@ -303,9 +388,25 @@ class ReportRepository {
         'ai_severity': aiSeverity,
         'ai_confidence': aiConfidence,
         'ai_boxes': aiBoxes,
+<<<<<<< HEAD
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+=======
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      await _notifications.notifyUser(
+        userId: reporterId,
+        title: 'Report Accepted',
+        body: 'Your issue has been recorded and is awaiting assignment.',
+        type: 'Report Accepted',
+        reportId: docRef.id,
+      );
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       if (priority == 'high' || priority == 'critical') {
         await _notifications.notifyUser(
           userId: reporterId,
@@ -316,6 +417,11 @@ class ReportRepository {
         );
       }
 
+<<<<<<< HEAD
+=======
+      await _updateCitizenReputation(userId: reporterId, citizenScoreDelta: 3);
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       return docRef.id;
     } on FirebaseException {
       rethrow;
@@ -336,11 +442,19 @@ class ReportRepository {
       category: category,
       latitude: latitude,
       longitude: longitude,
+<<<<<<< HEAD
       radiusMeters: 20,
     );
 
     if (duplicate != null) {
       await supportExistingReport(duplicate.id);
+=======
+      radiusMeters: 40,
+    );
+
+    if (duplicate != null) {
+      await supportExistingReport(duplicate.id, citizenId: reporterId);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       return;
     }
 
@@ -357,6 +471,10 @@ class ReportRepository {
   Future<void> assignWorker({
     required String reportId,
     required String workerId,
+<<<<<<< HEAD
+=======
+    required String workerName,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     String actorId = 'system',
     String actorRole = 'system',
   }) async {
@@ -370,9 +488,17 @@ class ReportRepository {
           reportData['status'] as String? ?? 'Reported';
 
       await _reports.doc(reportId).update(<String, dynamic>{
+<<<<<<< HEAD
         'assigned_worker': workerId,
         'status': 'Assigned',
         'assigned_at': FieldValue.serverTimestamp(),
+=======
+        'assigned_worker_id': workerId,
+        'assigned_worker_name': workerName,
+        'status': 'Assigned',
+        'assigned_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -426,9 +552,12 @@ class ReportRepository {
       if (!_statusPipeline.contains(status)) {
         throw StateError('Unsupported status transition target: $status');
       }
+<<<<<<< HEAD
       if (status == 'Fixed' && actorRole == 'worker') {
         throw StateError('Workers cannot move a report to Fixed.');
       }
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
       final DocumentSnapshot<Map<String, dynamic>> reportDoc = await _reports
           .doc(reportId)
@@ -450,18 +579,31 @@ class ReportRepository {
 
       final Map<String, dynamic> updates = <String, dynamic>{
         'status': status,
+<<<<<<< HEAD
+=======
+        'updated_at': FieldValue.serverTimestamp(),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'timestamp': FieldValue.serverTimestamp(),
       };
 
       if (status == 'In Progress' && data['started_at'] == null) {
         updates['started_at'] = FieldValue.serverTimestamp();
       }
+<<<<<<< HEAD
       if (status == 'Under Review') {
+=======
+      if (status == 'Under Review' && data['under_review_at'] == null) {
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         updates['under_review_at'] = FieldValue.serverTimestamp();
       }
       if (status == 'Fixed') {
         updates['resolved_at'] = FieldValue.serverTimestamp();
         updates['completion_timestamp'] = FieldValue.serverTimestamp();
+<<<<<<< HEAD
+=======
+        updates['completed_by'] = actorId;
+        updates['completed_at'] = FieldValue.serverTimestamp();
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         updates['sla_breach_flag'] = _isSlaBreached(data);
         updates['verify_fixed_count'] = 0;
         updates['verify_not_fixed_count'] = 0;
@@ -498,7 +640,11 @@ class ReportRepository {
         }
       }
 
+<<<<<<< HEAD
       final String workerDocId = data['assigned_worker'] as String? ?? '';
+=======
+      final String workerDocId = data['assigned_worker_id'] as String? ?? '';
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       if (status == 'Fixed' && workerDocId.isNotEmpty) {
         await _applyWorkerCredibility(workerDocId, data);
         await _notifications.notifyUser(
@@ -522,6 +668,74 @@ class ReportRepository {
     }
   }
 
+<<<<<<< HEAD
+=======
+  /// Complete a repair directly from a worker action.
+  ///
+  /// This sets the report to Fixed, tags the worker as the completer, and
+  /// updates the completion timestamp.
+  Future<void> completeRepair({
+    required String reportId,
+    required String workerId,
+  }) async {
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> reportDoc = await _reports
+          .doc(reportId)
+          .get();
+      final Map<String, dynamic> data = reportDoc.data() ?? <String, dynamic>{};
+      final String previousStatus = data['status'] as String? ?? 'Reported';
+
+      final Map<String, dynamic> updates = <String, dynamic>{
+        'status': 'Fixed',
+        'completed_by': workerId,
+        'completed_at': FieldValue.serverTimestamp(),
+        'resolved_at': FieldValue.serverTimestamp(),
+        'completion_timestamp': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'sla_breach_flag': _isSlaBreached(data),
+        'verify_fixed_count': 0,
+        'verify_not_fixed_count': 0,
+      };
+
+      await _reports.doc(reportId).update(updates);
+
+      await _logReportEvent(
+        reportId: reportId,
+        actorId: workerId,
+        actorRole: 'worker',
+        previousStatus: previousStatus,
+        newStatus: 'Fixed',
+      );
+
+      final String reporterId = data['reporter_id'] as String? ?? '';
+      if (reporterId.isNotEmpty) {
+        await _notifications.notifyUser(
+          userId: reporterId,
+          title: 'Repair Verified',
+          body: 'Your reported issue is fixed and verified.',
+          type: 'Repair Verified',
+          reportId: reportId,
+        );
+      }
+
+      final String workerDocId = data['assigned_worker_id'] as String? ?? '';
+      if (workerDocId.isNotEmpty) {
+        await _applyWorkerCredibility(workerDocId, data);
+        await _notifications.notifyUser(
+          userId: workerDocId,
+          title: 'Repair Verified',
+          body: 'Your repair work has been verified.',
+          type: 'Repair Verified',
+          reportId: reportId,
+        );
+      }
+    } on FirebaseException {
+      rethrow;
+    }
+  }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   Future<void> uploadRepairImage({
     required String reportId,
     required File imageFile,
@@ -530,8 +744,12 @@ class ReportRepository {
     try {
       final String fileName =
           'repairs/$workerId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+<<<<<<< HEAD
       final TaskSnapshot snap = await _storage.ref(fileName).putFile(imageFile);
       final String url = await snap.ref.getDownloadURL();
+=======
+      final String url = await _uploadImageToSupabase(imageFile, fileName);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
       final DocumentSnapshot<Map<String, dynamic>> reportDoc = await _reports
           .doc(reportId)
@@ -544,6 +762,10 @@ class ReportRepository {
         'repair_image_url': url,
         'status': 'Under Review',
         'under_review_at': FieldValue.serverTimestamp(),
+<<<<<<< HEAD
+=======
+        'updated_at': FieldValue.serverTimestamp(),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -554,8 +776,26 @@ class ReportRepository {
         previousStatus: previousStatus,
         newStatus: 'Under Review',
       );
+<<<<<<< HEAD
     } on FirebaseException {
       rethrow;
+=======
+
+      final String reporterId = data['reporter_id'] as String? ?? '';
+      if (reporterId.isNotEmpty) {
+        await _notifications.notifyUser(
+          userId: reporterId,
+          title: 'Repair Verification Request',
+          body: 'A worker uploaded repair proof. Please verify the repair.',
+          type: 'Repair Verification Request',
+          reportId: reportId,
+        );
+      }
+    } on FirebaseException {
+      rethrow;
+    } catch (_) {
+      rethrow;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     }
   }
 
@@ -569,10 +809,17 @@ class ReportRepository {
     try {
       final String fileName =
           'attendance/$workerId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+<<<<<<< HEAD
       final TaskSnapshot snap = await _storage
           .ref(fileName)
           .putFile(selfieImage);
       final String selfieUrl = await snap.ref.getDownloadURL();
+=======
+      final String selfieUrl = await _uploadImageToSupabase(
+        selfieImage,
+        fileName,
+      );
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       final DocumentReference<Map<String, dynamic>> topLevelAttendanceRef =
           _firestore.collection('attendance').doc();
       final DocumentReference<Map<String, dynamic>> reportAttendanceRef =
@@ -596,9 +843,42 @@ class ReportRepository {
       await batch.commit();
     } on FirebaseException {
       rethrow;
+<<<<<<< HEAD
     }
   }
 
+=======
+    } catch (_) {
+      rethrow;
+    }
+  }
+
+  Future<String> _uploadImageToSupabase(
+    File imageFile,
+    String fileName, {
+    String bucket = 'report-images',
+  }) async {
+    if (!imageFile.existsSync()) {
+      throw const FileSystemException('Image file not found');
+    }
+
+    final SupabaseClient supabase = Supabase.instance.client;
+    await supabase.storage
+        .from(bucket)
+        .upload(
+          fileName,
+          imageFile,
+          fileOptions: const FileOptions(
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'image/jpeg',
+          ),
+        );
+
+    return supabase.storage.from(bucket).getPublicUrl(fileName);
+  }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   Future<void> verifyRepair({
     required String reportId,
     required String userId,
@@ -609,19 +889,76 @@ class ReportRepository {
     if (isFixed) {
       await ref.update(<String, dynamic>{
         'verify_fixed_count': FieldValue.increment(1),
+<<<<<<< HEAD
         'timestamp': FieldValue.serverTimestamp(),
       });
       await _updateCitizenReputation(userId: userId, approvedDelta: 1);
+=======
+        'updated_at': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      await _updateCitizenReputation(
+        userId: userId,
+        approvedDelta: 1,
+        citizenScoreDelta: 5,
+      );
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       return;
     }
 
     final Map<String, dynamic> updates = <String, dynamic>{
       'verify_not_fixed_count': FieldValue.increment(1),
+<<<<<<< HEAD
+=======
+      'updated_at': FieldValue.serverTimestamp(),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       'timestamp': FieldValue.serverTimestamp(),
     };
 
     await ref.update(updates);
+<<<<<<< HEAD
     await _updateCitizenReputation(userId: userId, rejectedDelta: 1);
+=======
+    await _updateCitizenReputation(
+      userId: userId,
+      rejectedDelta: 1,
+      citizenScoreDelta: 1,
+    );
+
+    final DocumentSnapshot<Map<String, dynamic>> snap = await ref.get();
+    final Map<String, dynamic> data = snap.data() ?? <String, dynamic>{};
+    final int notFixed = (data['verify_not_fixed_count'] as num?)?.toInt() ?? 0;
+    if (notFixed >= 2) {
+      final String previousStatus = data['status'] as String? ?? 'Under Review';
+      await ref.update(<String, dynamic>{
+        'status': 'Assigned',
+        'repair_image': null,
+        'repair_image_url': null,
+        'under_review_at': null,
+        'resolved_at': null,
+        'completion_timestamp': null,
+        'updated_at': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      await _logReportEvent(
+        reportId: reportId,
+        actorId: userId,
+        actorRole: 'citizen',
+        previousStatus: previousStatus,
+        newStatus: 'Assigned',
+      );
+      final String workerId = data['assigned_worker_id'] as String? ?? '';
+      if (workerId.isNotEmpty) {
+        await _notifications.notifyUser(
+          userId: workerId,
+          title: 'Issue Reopened',
+          body: 'A citizen rejected the repair verification. Please revisit.',
+          type: 'Issue Reopened',
+          reportId: reportId,
+        );
+      }
+    }
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   }
 
   bool _isValidTransition({
@@ -640,6 +977,10 @@ class ReportRepository {
     required String userId,
     int approvedDelta = 0,
     int rejectedDelta = 0,
+<<<<<<< HEAD
+=======
+    int citizenScoreDelta = 0,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   }) async {
     final DocumentReference<Map<String, dynamic>> userRef = _firestore
         .collection('users')
@@ -653,11 +994,20 @@ class ReportRepository {
         ((data['reports_rejected'] as num?)?.toInt() ?? 0) + rejectedDelta;
     final int total = approved + rejected;
     final double accuracy = total == 0 ? 100 : (approved / total) * 100;
+<<<<<<< HEAD
+=======
+    final int citizenScore =
+        ((data['citizen_score'] as num?)?.toInt() ?? 0) + citizenScoreDelta;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
     await userRef.set(<String, dynamic>{
       'reports_approved': approved,
       'reports_rejected': rejected,
       'accuracy_score': double.parse(accuracy.toStringAsFixed(1)),
+<<<<<<< HEAD
+=======
+      'citizen_score': citizenScore,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     }, SetOptions(merge: true));
   }
 
@@ -668,6 +1018,7 @@ class ReportRepository {
     final Map<String, dynamic> data = snap.data() ?? <String, dynamic>{};
     final int supportCount = (data['report_count'] as num?)?.toInt() ?? 1;
 
+<<<<<<< HEAD
     String? escalatedPriority;
     if (supportCount > 50) {
       escalatedPriority = 'critical';
@@ -691,6 +1042,18 @@ class ReportRepository {
     };
 
     if ((rank[escalatedPriority] ?? 0) <= (rank[currentPriority] ?? 0)) {
+=======
+    final String escalatedPriority = smartPriority(
+      category: data['category'] as String? ?? 'Unknown',
+      duplicateCount: supportCount,
+      slaBreached: data['sla_breach_flag'] as bool? ?? false,
+    );
+
+    final String currentPriority = (data['priority'] as String? ?? 'low')
+        .toLowerCase();
+    if ((priorityRank[escalatedPriority] ?? 0) <=
+        (priorityRank[currentPriority] ?? 0)) {
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       return;
     }
 
@@ -711,11 +1074,16 @@ class ReportRepository {
     final DateTime now = DateTime.now();
     final String priority = (report['priority'] as String? ?? 'low')
         .toLowerCase();
+<<<<<<< HEAD
     final Duration sla = switch (priority) {
       'high' || 'critical' => const Duration(hours: 6),
       'medium' => const Duration(hours: 24),
       _ => const Duration(hours: 48),
     };
+=======
+    final String category = report['category'] as String? ?? 'Unknown';
+    final Duration sla = slaForReport(category: category, priority: priority);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
     return now.isAfter(assignedAt.add(sla));
   }
@@ -734,11 +1102,16 @@ class ReportRepository {
       final DateTime assigned = assignedTs.toDate();
       final String priority = (report['priority'] as String? ?? 'low')
           .toLowerCase();
+<<<<<<< HEAD
       final Duration sla = switch (priority) {
         'high' || 'critical' => const Duration(hours: 6),
         'medium' => const Duration(hours: 24),
         _ => const Duration(hours: 48),
       };
+=======
+      final String category = report['category'] as String? ?? 'Unknown';
+      final Duration sla = slaForReport(category: category, priority: priority);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       if (DateTime.now().isAfter(assigned.add(sla))) {
         scoreDelta = -2;
       }
@@ -752,6 +1125,97 @@ class ReportRepository {
     await _recomputeCredibility(workerDocId);
   }
 
+<<<<<<< HEAD
+=======
+  Stream<List<Map<String, dynamic>>> citizenLeaderboard({int limit = 10}) {
+    return _firestore
+        .collection('users')
+        .orderBy('citizen_score', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) =>
+              snapshot.docs.map((doc) => doc.data()).toList(growable: false),
+        );
+  }
+
+  Stream<List<Map<String, dynamic>>> workerLeaderboard({int limit = 10}) {
+    return _firestore
+        .collection('workers')
+        .orderBy('credibility_score', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) =>
+              snapshot.docs.map((doc) => doc.data()).toList(growable: false),
+        );
+  }
+
+  Stream<Map<String, dynamic>> cityAnalytics() {
+    return _reports.snapshots().asyncMap((
+      QuerySnapshot<Map<String, dynamic>> snapshot,
+    ) async {
+      final List<ReportModel> reports = snapshot.docs
+          .map(ReportModel.fromDoc)
+          .toList(growable: false);
+      final int total = reports.length;
+      final int resolved = reports.where((r) => r.status == 'Fixed').length;
+      final Iterable<ReportModel> withCompletion = reports.where(
+        (r) => r.completionTimestamp != null,
+      );
+      final double averageRepairHours = withCompletion.isEmpty
+          ? 0
+          : withCompletion
+                    .map(
+                      (r) => r.completionTimestamp!
+                          .difference(r.timestamp)
+                          .inMinutes
+                          .toDouble(),
+                    )
+                    .reduce((a, b) => a + b) /
+                withCompletion.length /
+                60;
+
+      final Map<String, int> categories = <String, int>{};
+      final Map<String, int> wards = <String, int>{};
+      for (final report in reports) {
+        categories.update(
+          report.category,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+        final String ward = _wardForCoordinates(
+          latitude: report.latitude,
+          longitude: report.longitude,
+        );
+        wards.update(ward, (value) => value + 1, ifAbsent: () => 1);
+      }
+
+      return <String, dynamic>{
+        'total_reports': total,
+        'resolved_reports': resolved,
+        'average_repair_hours': double.parse(
+          averageRepairHours.toStringAsFixed(1),
+        ),
+        'top_categories': categories.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)),
+        'ward_performance': wards.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)),
+      };
+    });
+  }
+
+  String _wardForCoordinates({
+    required double latitude,
+    required double longitude,
+  }) {
+    if (latitude >= 17.70) {
+      return longitude >= 75.90 ? 'North East Ward' : 'North West Ward';
+    }
+    return longitude >= 75.90 ? 'South East Ward' : 'South West Ward';
+  }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   Future<void> _recomputeCredibility(String workerDocId) async {
     final DocumentReference<Map<String, dynamic>> workerRef = _firestore
         .collection('workers')
@@ -786,4 +1250,67 @@ class ReportRepository {
           'timestamp': FieldValue.serverTimestamp(),
         });
   }
+<<<<<<< HEAD
+=======
+
+  Future<bool> isAttendanceMarkedToday(String workerId) async {
+    final DateTime now = DateTime.now();
+    final DateTime startOfDay = DateTime(now.year, now.month, now.day);
+    final DateTime endOfDay = startOfDay.add(const Duration(days: 1));
+
+    final QuerySnapshot<Map<String, dynamic>> snap = await _firestore
+        .collection('worker_attendance')
+        .where('worker_id', isEqualTo: workerId)
+        .where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+        )
+        .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
+        .get();
+
+    return snap.docs.isNotEmpty;
+  }
+
+  Future<void> markDailyAttendance({
+    required String workerId,
+    required File faceImage,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final int timestamp = DateTime.now().millisecondsSinceEpoch;
+    final String fileName = '$workerId/$timestamp.jpg';
+    final String imageUrl = await _uploadAttendanceImageWithRetry(
+      faceImage,
+      fileName,
+    );
+
+    await _firestore.collection('worker_attendance').add(<String, dynamic>{
+      'worker_id': workerId,
+      'image_url': imageUrl,
+      'timestamp': FieldValue.serverTimestamp(),
+      'latitude': latitude,
+      'longitude': longitude,
+      'status': 'present',
+    });
+  }
+
+  Future<String> _uploadAttendanceImageWithRetry(
+    File imageFile,
+    String fileName,
+  ) async {
+    Object? lastError;
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await _uploadImageToSupabase(
+          imageFile,
+          fileName,
+          bucket: 'worker-attendance',
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? Exception('Attendance upload failed');
+  }
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 }

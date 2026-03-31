@@ -14,6 +14,11 @@ class ReportModel {
     required this.status,
     required this.reporterId,
     required this.reportCount,
+<<<<<<< HEAD
+=======
+    this.duplicateCount = 1,
+    this.supporterIds = const <String>[],
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     required this.timestamp,
     this.assignedAt,
     this.startedAt,
@@ -26,6 +31,10 @@ class ReportModel {
     this.aiSeverity,
     this.aiBoxes = const <AiBox>[],
     this.assignedWorker,
+<<<<<<< HEAD
+=======
+    this.assignedWorkerName,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     this.repairImage,
   });
 
@@ -39,8 +48,16 @@ class ReportModel {
   final String status;
   final String reporterId;
   final String? assignedWorker;
+<<<<<<< HEAD
   final String? repairImage;
   final int reportCount;
+=======
+  final String? assignedWorkerName;
+  final String? repairImage;
+  final int reportCount;
+  final int duplicateCount;
+  final List<String> supporterIds;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   final DateTime timestamp;
   final DateTime? assignedAt;
   final DateTime? startedAt;
@@ -53,6 +70,7 @@ class ReportModel {
   final String? aiSeverity;
   final List<AiBox> aiBoxes;
 
+<<<<<<< HEAD
   factory ReportModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return ReportModel(
@@ -66,11 +84,53 @@ class ReportModel {
       status: data['status'] as String? ?? 'Reported',
       reporterId: data['reporter_id'] as String? ?? '',
       assignedWorker: data['assigned_worker'] as String?,
+=======
+  bool get hasValidCoordinates {
+    return latitude.isFinite &&
+        longitude.isFinite &&
+        latitude.abs() <= 90 &&
+        longitude.abs() <= 180 &&
+        !(latitude == 0 && longitude == 0);
+  }
+
+  factory ReportModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
+    final GeoPoint? location = data['location'] as GeoPoint?;
+    return ReportModel(
+      id: data['id'] as String? ?? data['report_id'] as String? ?? doc.id,
+      category: data['category'] as String? ?? 'Unknown',
+      description: data['description'] as String? ?? '',
+      imageUrl: data['image_url'] as String? ?? '',
+      latitude:
+          location?.latitude ?? (data['latitude'] as num?)?.toDouble() ?? 0,
+      longitude:
+          location?.longitude ?? (data['longitude'] as num?)?.toDouble() ?? 0,
+      priority: data['priority'] as String? ?? 'low',
+      status: data['status'] as String? ?? 'Reported',
+      reporterId: data['reporter_id'] as String? ?? '',
+      assignedWorker: data['assigned_worker_id'] as String?,
+      assignedWorkerName: data['assigned_worker_name'] as String?,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       repairImage:
           data['repair_image_url'] as String? ??
           data['repair_image'] as String?,
       reportCount: (data['report_count'] as num?)?.toInt() ?? 1,
+<<<<<<< HEAD
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+=======
+      duplicateCount:
+          (data['duplicate_count'] as num?)?.toInt() ??
+          (data['report_count'] as num?)?.toInt() ??
+          1,
+      supporterIds:
+          ((data['supporter_ids'] as List<dynamic>?) ?? const <dynamic>[])
+              .whereType<String>()
+              .toList(growable: false),
+      timestamp:
+          (data['created_at'] as Timestamp?)?.toDate() ??
+          (data['timestamp'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       assignedAt: (data['assigned_at'] as Timestamp?)?.toDate(),
       startedAt: (data['started_at'] as Timestamp?)?.toDate(),
       underReviewAt: (data['under_review_at'] as Timestamp?)?.toDate(),

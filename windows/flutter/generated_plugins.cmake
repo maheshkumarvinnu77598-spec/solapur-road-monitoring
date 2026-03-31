@@ -3,13 +3,23 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+<<<<<<< HEAD
+=======
+  app_links
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   cloud_firestore
   connectivity_plus
   file_selector_windows
   firebase_auth
   firebase_core
+<<<<<<< HEAD
   firebase_storage
   geolocator_windows
+=======
+  geolocator_windows
+  permission_handler_windows
+  printing
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   url_launcher_windows
 )
 

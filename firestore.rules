@@ -69,6 +69,12 @@ service cloud.firestore {
         signedIn() &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'report_count',
+<<<<<<< HEAD
+=======
+          'duplicate_count',
+          'supporter_ids',
+          'duplicate_attached',
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
           'priority',
           'priority_escalated',
           'timestamp'
@@ -79,12 +85,25 @@ service cloud.firestore {
           'verify_fixed_count',
           'verify_not_fixed_count',
           'status',
+<<<<<<< HEAD
           'resolved_at',
+=======
+          'repair_image',
+          'repair_image_url',
+          'under_review_at',
+          'resolved_at',
+          'completion_timestamp',
+          'updated_at',
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
           'timestamp'
         ])
       ) || (
         isWorker() &&
+<<<<<<< HEAD
         resource.data.assigned_worker == workerDocId() &&
+=======
+        resource.data.assigned_worker_id == workerDocId() &&
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         request.resource.data.status != 'Resolved' &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'status',
@@ -92,6 +111,10 @@ service cloud.firestore {
           'started_at',
           'resolved_at',
           'sla_breach_flag',
+<<<<<<< HEAD
+=======
+          'updated_at',
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
           'timestamp'
         ])
       );
@@ -102,7 +125,11 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if isAdmin() || (
           isWorker() &&
+<<<<<<< HEAD
           get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker == workerDocId()
+=======
+          get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker_id == workerDocId()
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         );
         allow update, delete: if false;
       }
@@ -111,7 +138,11 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if isAdmin() || (
           isWorker() &&
+<<<<<<< HEAD
           get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker == workerDocId()
+=======
+          get(/databases/$(database)/documents/reports/$(reportId)).data.assigned_worker_id == workerDocId()
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         );
         allow update, delete: if false;
       }
@@ -129,6 +160,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+<<<<<<< HEAD
+=======
+    match /worker_attendance/{attendanceId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        (isWorker() && resource.data.worker_id == workerDocId())
+      );
+      allow create: if isWorker() && request.resource.data.worker_id == workerDocId();
+      allow update, delete: if false;
+    }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     match /notifications/{notificationId} {
       allow read: if signedIn() && (
         isAdmin() || resource.data.user_id == request.auth.uid
@@ -139,6 +182,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+<<<<<<< HEAD
+=======
+    match /support_requests/{requestId} {
+      allow read: if signedIn() && (
+        isAdmin() || resource.data.user_id == request.auth.uid
+      );
+      allow create: if signedIn() &&
+        request.resource.data.user_id == request.auth.uid;
+      allow update: if isAdmin() || (
+        signedIn() &&
+        resource.data.user_id == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'timestamp'
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     match /counters/{counterId} {
       allow read, write: if isAdmin();
     }

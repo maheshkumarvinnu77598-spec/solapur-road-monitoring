@@ -14,9 +14,20 @@ class NotificationService {
     String? reportId,
   }) async {
     try {
+<<<<<<< HEAD
       await _firestore.collection('notifications').add(<String, dynamic>{
         'user_id': userId,
         'title': title,
+=======
+      final DocumentReference<Map<String, dynamic>> docRef = _firestore
+          .collection('notifications')
+          .doc();
+      await docRef.set(<String, dynamic>{
+        'id': docRef.id,
+        'user_id': userId,
+        'title': title,
+        'message': body,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         'body': body,
         'type': type,
         'report_id': reportId,

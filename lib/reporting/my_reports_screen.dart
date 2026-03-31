@@ -4,6 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../models/report_model.dart';
 import '../ui_theme/app_theme.dart';
+<<<<<<< HEAD
+=======
+import '../utils/priority_utils.dart';
+import '../utils/resilient_ui.dart';
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 import 'report_config.dart';
 import 'report_detail_screen.dart';
 import 'report_repository.dart';
@@ -40,6 +45,7 @@ class MyReportsScreen extends StatelessWidget {
 
         final List<ReportModel> reports = snapshot.data!;
         if (reports.isEmpty) {
+<<<<<<< HEAD
           return const Center(child: Text('No reports yet.'));
         }
 
@@ -120,6 +126,102 @@ class MyReportsScreen extends StatelessWidget {
               ),
             );
           },
+=======
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: DemoEmptyState(
+              message: 'No reports available',
+              icon: Icons.inbox_outlined,
+            ),
+          );
+        }
+
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: ListView.builder(
+            key: ValueKey<int>(reports.length),
+            padding: const EdgeInsets.all(12),
+            itemCount: reports.length,
+            itemBuilder: (BuildContext context, int index) {
+              final ReportModel report = reports[index];
+              final Color priorityColor = colorForPriority(report.priority);
+              return Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReportDetailScreen(
+                          report: report,
+                          repository: repository,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SizedBox(
+                          height: 72,
+                          width: 72,
+                          child: DemoNetworkImage(
+                            imageUrl: report.imageUrl,
+                            height: 72,
+                            width: 72,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                report.category,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${report.status} • ${DateFormat('dd MMM, hh:mm a').format(report.timestamp)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Location: ${report.latitude.toStringAsFixed(5)}, ${report.longitude.toStringAsFixed(5)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Chip(
+                          label: Text(
+                            report.priority.toUpperCase(),
+                            style: TextStyle(
+                              color:
+                                  ThemeData.estimateBrightnessForColor(
+                                        priorityColor,
+                                      ) ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                          ),
+                          backgroundColor: priorityColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
         );
       },
     );
@@ -190,6 +292,12 @@ class _ReportCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
+=======
+    final Color skeleton = Theme.of(
+      context,
+    ).colorScheme.surface.withValues(alpha: 0.8);
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -199,7 +307,11 @@ class _ReportCardSkeleton extends StatelessWidget {
               height: 36,
               width: 36,
               decoration: BoxDecoration(
+<<<<<<< HEAD
                 color: Colors.white,
+=======
+                color: skeleton,
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
@@ -208,9 +320,15 @@ class _ReportCardSkeleton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+<<<<<<< HEAD
                   Container(height: 12, color: Colors.white),
                   const SizedBox(height: 8),
                   Container(height: 10, width: 180, color: Colors.white),
+=======
+                  Container(height: 12, color: skeleton),
+                  const SizedBox(height: 8),
+                  Container(height: 10, width: 180, color: skeleton),
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
                 ],
               ),
             ),

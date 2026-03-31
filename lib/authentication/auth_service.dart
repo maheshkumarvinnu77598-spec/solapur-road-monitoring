@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+<<<<<<< HEAD
 import 'package:cloud_functions/cloud_functions.dart';
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
 import '../models/app_user.dart';
 
 class AuthService {
+<<<<<<< HEAD
   AuthService({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
@@ -16,13 +20,55 @@ class AuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
+=======
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 
   Stream<User?> authChanges() => _auth.authStateChanges();
 
   User? get currentUser => _auth.currentUser;
 
+<<<<<<< HEAD
   Future<void> signInWithEmail(String email, String password) {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
+=======
+  Future<void> signInWithEmail(String email, String password) async {
+    final String normalizedEmail = email.trim().toLowerCase();
+    final String normalizedPassword = password.trim();
+
+    final UserCredential credential = await _auth.signInWithEmailAndPassword(
+      email: normalizedEmail,
+      password: normalizedPassword,
+    );
+
+    final User? user = credential.user;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'invalid-credential',
+        message: 'Login did not return a Firebase user.',
+      );
+    }
+
+    final DocumentReference<Map<String, dynamic>> userRef = _firestore
+        .collection('users')
+        .doc(user.uid);
+    final DocumentSnapshot<Map<String, dynamic>> userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      await userRef.set(<String, dynamic>{
+        'uid': user.uid,
+        'email': normalizedEmail,
+        'name': user.displayName ?? 'New User',
+        'role': UserRole.citizen.name,
+        'created_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   }
 
   Future<void> signUpCitizen(String email, String password, String name) async {
@@ -78,6 +124,22 @@ class AuthService {
         );
       }
 
+<<<<<<< HEAD
+=======
+      final AppUser? workerByEmail = await _resolveWorkerByEmail(user.email);
+      if (workerByEmail != null) {
+        await _ensureWorkerUserDocument(workerByEmail, authUid: user.uid);
+        return AppUser(
+          uid: user.uid,
+          email: user.email,
+          role: UserRole.worker,
+          name: workerByEmail.name,
+          phone: workerByEmail.phone,
+          zone: workerByEmail.zone,
+        );
+      }
+
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
       final AppUser fallback = AppUser(
         uid: user.uid,
         email: user.email,
@@ -94,6 +156,7 @@ class AuthService {
     return AppUser.fromMap(user.uid, snapshot.data()!);
   }
 
+<<<<<<< HEAD
   Future<void> verifyPhoneNumber({
     required String phone,
     required void Function(PhoneAuthCredential credential)
@@ -116,10 +179,13 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+=======
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   Future<AppUser?> workerLogin({
     required String workerId,
     required String password,
   }) async {
+<<<<<<< HEAD
     try {
       final HttpsCallable callable = _functions.httpsCallable('workerLogin');
       final HttpsCallableResult<dynamic> result = await callable.call(
@@ -158,5 +224,121 @@ class AuthService {
     } on FirebaseAuthException {
       return null;
     }
+=======
+    final String normalizedWorkerId = workerId.trim().toUpperCase();
+    if (normalizedWorkerId.isEmpty || password.trim().isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-credential',
+        message: 'Worker ID and password are required.',
+      );
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('workers')
+        .doc(normalizedWorkerId)
+        .get();
+
+    if (!snapshot.exists) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'Worker ID not found.',
+      );
+    }
+
+    final Map<String, dynamic> workerData = snapshot.data()!;
+    final String storedPassword = (workerData['password'] as String? ?? '')
+        .trim();
+    if (storedPassword != password.trim()) {
+      throw FirebaseAuthException(
+        code: 'wrong-password',
+        message: 'Incorrect password.',
+      );
+    }
+
+    final AppUser appUser = AppUser(
+      uid: snapshot.id,
+      email: workerData['email'] as String?,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+    return appUser;
+  }
+
+  Future<AppUser?> workerLoginWithId(String workerId) async {
+    final String normalizedWorkerId = workerId.trim().toUpperCase();
+    if (normalizedWorkerId.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-credential',
+        message: 'Worker ID is required.',
+      );
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('workers')
+        .doc(normalizedWorkerId)
+        .get();
+
+    if (!snapshot.exists) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'Worker ID not found.',
+      );
+    }
+
+    final Map<String, dynamic> workerData = snapshot.data()!;
+    return AppUser(
+      uid: snapshot.id,
+      email: workerData['email'] as String?,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+  }
+
+  Future<AppUser?> _resolveWorkerByEmail(String? email) async {
+    final String normalized = (email ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final QuerySnapshot<Map<String, dynamic>> query = await _firestore
+        .collection('workers')
+        .where('email', isEqualTo: normalized)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      return null;
+    }
+
+    final Map<String, dynamic> workerData = query.docs.first.data();
+    return AppUser(
+      uid: query.docs.first.id,
+      email: normalized,
+      role: UserRole.worker,
+      name: workerData['name'] as String?,
+      phone: workerData['phone'] as String?,
+      zone: workerData['zone'] as String?,
+    );
+  }
+
+  Future<void> _ensureWorkerUserDocument(
+    AppUser worker, {
+    required String authUid,
+  }) {
+    return _firestore.collection('users').doc(authUid).set(<String, dynamic>{
+      'uid': authUid,
+      'email': worker.email,
+      'name': worker.name,
+      'phone': worker.phone,
+      'role': UserRole.worker.name,
+      'zone': worker.zone,
+      'avatar_emoji': '',
+      'profile_picture': '',
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+>>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
   }
 }
