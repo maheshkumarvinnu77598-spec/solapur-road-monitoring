@@ -7,10 +7,11 @@ import cv2
 from fastapi import FastAPI, File, HTTPException, UploadFile
 import uvicorn
 
-from detect import ModelManager, get_model_manager, get_yolo_weights_path
+from detect import get_yolo_weights_path
+from ml_service import HybridRoadDetector, get_hybrid_detector
 
 app = FastAPI(title="Road Damage Detection API")
-model_manager: ModelManager | None = None
+model_manager: HybridRoadDetector | None = None
 
 
 def extract_frames(video_path: Path, output_dir: Path, num_frames: int = 5) -> list[Path]:
@@ -53,7 +54,7 @@ def load_models() -> None:
     if not weights_path.exists():
         raise RuntimeError(f"YOLO fallback weights not found. Expected: {weights_path}")
 
-    model_manager = get_model_manager(str(weights_path))
+    model_manager = get_hybrid_detector(str(weights_path))
 
 
 @app.post("/detect")

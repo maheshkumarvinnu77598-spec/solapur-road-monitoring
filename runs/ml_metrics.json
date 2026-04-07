@@ -1,0 +1,6 @@
+{
+  "total_images": 10,
+  "grounding_dino": 0,
+  "yolo_fallback": 0,
+  "no_detection": 10
+}

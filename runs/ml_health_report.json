@@ -1,0 +1,6 @@
+{
+  "api_status": "running",
+  "grounding_dino_loaded": true,
+  "yolo_loaded": true,
+  "avg_inference_time_ms": 9890.88
+}

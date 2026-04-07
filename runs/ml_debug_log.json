@@ -1,0 +1,485 @@
+[
+  {
+    "image": "tmp7xkb3i6f.jpg",
+    "model_used": "grounding_dino",
+    "detections": 2,
+    "processing_time_ms": 20671,
+    "timestamp": "2026-04-06T15:48:51"
+  },
+  {
+    "image": "tmpjaj7y9t2.jpg",
+    "model_used": "grounding_dino",
+    "detections": 2,
+    "processing_time_ms": 16072,
+    "timestamp": "2026-04-06T15:52:07"
+  },
+  {
+    "image": "tmpvge1nosa.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 17616,
+    "timestamp": "2026-04-06T15:54:36"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 28422,
+    "timestamp": "2026-04-07T09:34:22"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 24200,
+    "timestamp": "2026-04-07T09:35:18"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 13262,
+    "timestamp": "2026-04-07T09:41:09"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 11337,
+    "timestamp": "2026-04-07T09:41:21"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 11527,
+    "timestamp": "2026-04-07T09:41:32"
+  },
+  {
+    "image": "road_3.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10805,
+    "timestamp": "2026-04-07T09:41:43"
+  },
+  {
+    "image": "road_4.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10607,
+    "timestamp": "2026-04-07T09:41:53"
+  },
+  {
+    "image": "road_5.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10259,
+    "timestamp": "2026-04-07T09:42:04"
+  },
+  {
+    "image": "road_6.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10119,
+    "timestamp": "2026-04-07T09:42:14"
+  },
+  {
+    "image": "road_7.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10234,
+    "timestamp": "2026-04-07T09:42:24"
+  },
+  {
+    "image": "road_8.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10116,
+    "timestamp": "2026-04-07T09:42:34"
+  },
+  {
+    "image": "road_9.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10190,
+    "timestamp": "2026-04-07T09:42:44"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 12775,
+    "timestamp": "2026-04-07T09:46:18"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10256,
+    "timestamp": "2026-04-07T09:46:28"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10263,
+    "timestamp": "2026-04-07T09:46:38"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 11859,
+    "timestamp": "2026-04-07T09:47:17"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10008,
+    "timestamp": "2026-04-07T09:47:27"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9782,
+    "timestamp": "2026-04-07T09:47:37"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9846,
+    "timestamp": "2026-04-07T09:47:47"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 25487,
+    "timestamp": "2026-04-07T09:56:59"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 11779,
+    "timestamp": "2026-04-07T10:01:56"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9958,
+    "timestamp": "2026-04-07T10:02:06"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9847,
+    "timestamp": "2026-04-07T10:02:16"
+  },
+  {
+    "image": "road_3.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9829,
+    "timestamp": "2026-04-07T10:02:26"
+  },
+  {
+    "image": "road_4.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9875,
+    "timestamp": "2026-04-07T10:02:36"
+  },
+  {
+    "image": "road_5.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9883,
+    "timestamp": "2026-04-07T10:02:45"
+  },
+  {
+    "image": "road_6.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9830,
+    "timestamp": "2026-04-07T10:02:55"
+  },
+  {
+    "image": "road_7.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9907,
+    "timestamp": "2026-04-07T10:03:05"
+  },
+  {
+    "image": "road_8.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9857,
+    "timestamp": "2026-04-07T10:03:15"
+  },
+  {
+    "image": "road_9.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9789,
+    "timestamp": "2026-04-07T10:03:25"
+  },
+  {
+    "image": "tmp71vckew8.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 16776,
+    "timestamp": "2026-04-07T10:16:27"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 11713,
+    "timestamp": "2026-04-07T10:17:44"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9804,
+    "timestamp": "2026-04-07T10:17:54"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9786,
+    "timestamp": "2026-04-07T10:18:04"
+  },
+  {
+    "image": "road_3.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10014,
+    "timestamp": "2026-04-07T10:18:14"
+  },
+  {
+    "image": "road_4.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10150,
+    "timestamp": "2026-04-07T10:18:24"
+  },
+  {
+    "image": "road_5.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10311,
+    "timestamp": "2026-04-07T10:18:35"
+  },
+  {
+    "image": "road_6.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10283,
+    "timestamp": "2026-04-07T10:18:45"
+  },
+  {
+    "image": "road_7.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 10183,
+    "timestamp": "2026-04-07T10:18:55"
+  },
+  {
+    "image": "road_8.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9892,
+    "timestamp": "2026-04-07T10:19:05"
+  },
+  {
+    "image": "road_9.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 9933,
+    "timestamp": "2026-04-07T10:19:15"
+  },
+  {
+    "image": "tmpuqd0acs3.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 26775,
+    "timestamp": "2026-04-07T10:25:44"
+  },
+  {
+    "image": "tmpyob1dzgn.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 15700,
+    "timestamp": "2026-04-07T10:29:47"
+  },
+  {
+    "image": "tmpfd2gmwhp.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 14679,
+    "timestamp": "2026-04-07T10:37:05"
+  },
+  {
+    "image": "tmpvvxrr2b3.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 15013,
+    "timestamp": "2026-04-07T10:49:28"
+  },
+  {
+    "image": "tmpky5tx72x.jpg",
+    "model_used": "fallback_yolo",
+    "detections": 0,
+    "processing_time_ms": 15322,
+    "timestamp": "2026-04-07T10:55:45"
+  },
+  {
+    "image": "tmp6y28xxj4.jpg",
+    "model_used": "grounding_dino",
+    "detections": 70,
+    "processing_time_ms": 14836,
+    "timestamp": "2026-04-07T10:59:23"
+  },
+  {
+    "image": "tmpu1434y0s.jpg",
+    "model_used": "grounding_dino",
+    "detections": 49,
+    "processing_time_ms": 11897,
+    "timestamp": "2026-04-07T10:59:55"
+  },
+  {
+    "image": "tmplw2poz_z.jpg",
+    "model_used": "grounding_dino",
+    "detections": 49,
+    "processing_time_ms": 12661,
+    "timestamp": "2026-04-07T11:00:12"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "grounding_dino",
+    "detections": 95,
+    "processing_time_ms": 12029,
+    "timestamp": "2026-04-07T12:15:31"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "grounding_dino",
+    "detections": 88,
+    "processing_time_ms": 11314,
+    "timestamp": "2026-04-07T12:16:51"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 11306,
+    "timestamp": "2026-04-07T12:18:04"
+  },
+  {
+    "image": "tmpoq5r_zsq.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 11165,
+    "timestamp": "2026-04-07T12:18:53"
+  },
+  {
+    "image": "road_1.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 13741,
+    "timestamp": "2026-04-07T12:23:27"
+  },
+  {
+    "image": "road_10.jpg",
+    "model_used": "grounding_dino",
+    "detections": 4,
+    "processing_time_ms": 13255,
+    "timestamp": "2026-04-07T12:23:40"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 12323,
+    "timestamp": "2026-04-07T12:23:52"
+  },
+  {
+    "image": "road_3.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 11694,
+    "timestamp": "2026-04-07T12:24:04"
+  },
+  {
+    "image": "road_4.jpg",
+    "model_used": "grounding_dino",
+    "detections": 3,
+    "processing_time_ms": 11145,
+    "timestamp": "2026-04-07T12:24:15"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "hybrid",
+    "detections": 4,
+    "processing_time_ms": 10986,
+    "timestamp": "2026-04-07T12:28:30"
+  },
+  {
+    "image": "tmpewpqlo4s.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 15232,
+    "timestamp": "2026-04-07T12:29:47"
+  },
+  {
+    "image": "tmpl3hybb4t.jpg",
+    "model_used": "grounding_dino",
+    "detections": 3,
+    "processing_time_ms": 13006,
+    "timestamp": "2026-04-07T12:30:00"
+  },
+  {
+    "image": "tmpfpu8h8rm.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 11977,
+    "timestamp": "2026-04-07T12:30:43"
+  },
+  {
+    "image": "road_2.jpg",
+    "model_used": "grounding_dino",
+    "detections": 4,
+    "processing_time_ms": 10903,
+    "timestamp": "2026-04-07T12:35:38"
+  },
+  {
+    "image": "tmpd44e3fl_.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 11727,
+    "timestamp": "2026-04-07T12:38:34"
+  },
+  {
+    "image": "tmpw76cj05d.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 12040,
+    "timestamp": "2026-04-07T12:44:36"
+  },
+  {
+    "image": "tmp8icsap7u.jpg",
+    "model_used": "grounding_dino",
+    "detections": 5,
+    "processing_time_ms": 12182,
+    "timestamp": "2026-04-07T12:53:15"
+  }
+]

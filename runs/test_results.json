@@ -1,0 +1,52 @@
+[
+  {
+    "image": "road_1.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_10.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_2.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_3.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_4.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_5.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_6.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_7.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_8.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  },
+  {
+    "image": "road_9.jpg",
+    "source": "fallback_yolo",
+    "detections": []
+  }
+]
