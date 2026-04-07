@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
-<<<<<<< HEAD
 import '../ui_theme/app_theme.dart';
 
-=======
->>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 class IssueCategory {
   const IssueCategory(this.name, this.icon);
 
@@ -14,35 +11,70 @@ class IssueCategory {
 
 const List<IssueCategory> issueCategories = <IssueCategory>[
   IssueCategory('Pothole', Icons.warning_amber_rounded),
-<<<<<<< HEAD
   IssueCategory('Road Surface Damage', Icons.construction_rounded),
+  IssueCategory('Road Obstruction', Icons.block_rounded),
+  IssueCategory('Water Logging', Icons.flood_rounded),
+  IssueCategory('Drainage Blockage', Icons.water_damage_outlined),
+  IssueCategory('Street Light Not Working', Icons.lightbulb_outline_rounded),
   IssueCategory('Incomplete Road Work', Icons.engineering_rounded),
   IssueCategory('Damaged Footpath', Icons.directions_walk_rounded),
-  IssueCategory('Water Logging', Icons.flood_rounded),
   IssueCategory('Open Manhole', Icons.dangerous_rounded),
   IssueCategory('Garbage Dumping', Icons.delete_outline_rounded),
-  IssueCategory('Street Light Not Working', Icons.lightbulb_outline_rounded),
-=======
-  IssueCategory('Garbage Dump', Icons.delete_outline_rounded),
-  IssueCategory('Water Logging', Icons.flood_rounded),
-  IssueCategory('Street Light Issue', Icons.lightbulb_outline_rounded),
->>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 ];
+
+const Map<String, String> yoloLabelToCategory = <String, String>{
+  'pothole': 'Pothole',
+  'road damage': 'Road Surface Damage',
+  'road_damage': 'Road Surface Damage',
+  'road surface damage': 'Road Surface Damage',
+  'water logging': 'Water Logging',
+  'water_logging': 'Water Logging',
+  'broken streetlight': 'Street Light Not Working',
+  'broken street light': 'Street Light Not Working',
+  'street light issue': 'Street Light Not Working',
+  'street light not working': 'Street Light Not Working',
+  'road obstruction': 'Road Obstruction',
+  'drainage blockage': 'Drainage Blockage',
+};
+
+String resolveCategory(String? rawLabel, {String? fallbackCategory}) {
+  final String normalized = (rawLabel ?? '').trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return fallbackCategory ?? 'Pothole';
+  }
+
+  final String? mapped = yoloLabelToCategory[normalized];
+  if (mapped != null) {
+    return mapped;
+  }
+
+  final String normalizedFallback = (fallbackCategory ?? '').trim();
+  if (normalizedFallback.isNotEmpty) {
+    return normalizedFallback;
+  }
+
+  return rawLabel!
+      .trim()
+      .split(RegExp(r'\s+'))
+      .map((String part) {
+        if (part.isEmpty) {
+          return part;
+        }
+        return '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}';
+      })
+      .join(' ');
+}
 
 String priorityForCategory(String category) {
   switch (category) {
     case 'Open Manhole':
       return 'critical';
     case 'Pothole':
+    case 'Road Obstruction':
     case 'Water Logging':
       return 'high';
-<<<<<<< HEAD
+    case 'Drainage Blockage':
     case 'Garbage Dumping':
-=======
-    case 'Garbage Dump':
-    case 'Garbage Dumping':
-    case 'Street Light Issue':
->>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
     case 'Street Light Not Working':
       return 'medium';
     default:
@@ -50,7 +82,6 @@ String priorityForCategory(String category) {
   }
 }
 
-<<<<<<< HEAD
 Color colorForPriority(String priority) {
   switch (priority.toLowerCase()) {
     case 'critical':
@@ -64,7 +95,6 @@ Color colorForPriority(String priority) {
   }
 }
 
-=======
 const Map<String, int> priorityRank = <String, int>{
   'low': 0,
   'medium': 1,
@@ -76,10 +106,10 @@ Duration slaForReport({required String category, required String priority}) {
   switch (category) {
     case 'Open Manhole':
       return const Duration(hours: 4);
-    case 'Street Light Issue':
     case 'Street Light Not Working':
       return const Duration(hours: 24);
     case 'Pothole':
+    case 'Road Obstruction':
       return const Duration(hours: 48);
   }
 
@@ -149,7 +179,6 @@ List<String> badgesForCitizen({
   return badges;
 }
 
->>>>>>> 0957bededdaab9cc21b7e75c4984775a3603902c
 const List<String> reportStatuses = <String>[
   'Reported',
   'Assigned',

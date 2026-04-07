@@ -2,7 +2,7 @@
 """Train YOLOv8 model for pothole/road-damage detection.
 
 Usage:
-  python train.mit.py --data data.yaml --epochs 100
+  python train.mit.py --data data.yaml --epochs 50
 """
 
 from __future__ import annotations
@@ -16,9 +16,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train YOLOv8 for Solapur Road Monitoring")
     parser.add_argument("--data", default="data.yaml", help="Path to data.yaml")
     parser.add_argument("--model", default="yolov8n.pt", help="Base YOLO model")
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument("--batch", type=int, default=4)
     parser.add_argument("--device", default="0", help="CUDA device id or 'cpu'")
     return parser.parse_args()
 
@@ -28,8 +28,8 @@ def main() -> int:
 
     data_path = Path(args.data)
     if not data_path.exists():
-      print(f"[ERROR] data.yaml not found: {data_path}")
-      return 1
+        print(f"[ERROR] data.yaml not found: {data_path}")
+        return 1
 
     try:
         from ultralytics import YOLO  # type: ignore
@@ -38,12 +38,14 @@ def main() -> int:
         print("Install with: pip install ultralytics")
         return 1
 
+    effective_batch = 2 if str(args.device).lower() == "cpu" and args.batch > 2 else args.batch
+
     print("=== YOLOv8 Training Started ===")
     print(f"Model:  {args.model}")
     print(f"Data:   {data_path}")
     print(f"Epochs: {args.epochs}")
     print(f"Image:  {args.imgsz}")
-    print(f"Batch:  {args.batch}")
+    print(f"Batch:  {effective_batch}")
     print(f"Device: {args.device}")
 
     model = YOLO(args.model)
@@ -51,11 +53,16 @@ def main() -> int:
         data=str(data_path),
         epochs=args.epochs,
         imgsz=args.imgsz,
-        batch=args.batch,
+        batch=effective_batch,
         device=args.device,
         project="models",
         name="road_damage",
         exist_ok=True,
+        patience=20,
+        flipud=0.1,
+        degrees=5.0,
+        scale=0.3,
+        hsv_v=0.3,
         verbose=True,
     )
 

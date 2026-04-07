@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Hybrid Road Issue Detection")
     parser.add_argument("--weights", required=True, help="Path to YOLO best.pt")
     parser.add_argument("--source", required=True, help="Image source")
-    parser.add_argument("--conf", type=float, default=0.25)
+    parser.add_argument("--conf", type=float, default=0.10)
     return parser.parse_args()
 
 
@@ -28,11 +28,11 @@ def get_yolo_weights_path() -> Path:
     return Path(__file__).resolve().parent / "models" / "road_damage" / "weights" / "best.pt"
 
 
-def get_model_manager(weights_path: str, conf: float = 0.25) -> HybridRoadDetector:
+def get_model_manager(weights_path: str, conf: float = 0.10) -> HybridRoadDetector:
     return get_hybrid_detector(weights_path=weights_path, conf=conf)
 
 
-def run_pipeline(image_path: str, weights_path: str, conf: float = 0.25) -> dict:
+def run_pipeline(image_path: str, weights_path: str, conf: float = 0.10) -> dict:
     manager = get_model_manager(weights_path=weights_path, conf=conf)
     return manager.detect(image_path)
 

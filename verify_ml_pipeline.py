@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 
@@ -15,7 +16,16 @@ TEST_IMAGES_DIR = Path("test_images")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
-def get_test_images() -> list[Path]:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Verify the local ML pipeline without the API")
+    parser.add_argument("images", nargs="*", help="Optional image paths to test")
+    return parser.parse_args()
+
+
+def get_test_images(explicit_images: list[str]) -> list[Path]:
+    if explicit_images:
+        return [Path(image) for image in explicit_images]
+
     if not TEST_IMAGES_DIR.exists():
         return []
 
@@ -27,14 +37,15 @@ def get_test_images() -> list[Path]:
 
 
 def main() -> int:
+    args = parse_args()
     weights_path = get_yolo_weights_path()
     if not weights_path.exists():
         print("[ERROR] YOLO weights not found.")
         return 1
 
-    image_paths = get_test_images()
+    image_paths = get_test_images(args.images)
     if not image_paths:
-        print("[ERROR] No test images found in test_images/")
+        print("[ERROR] No test images found.")
         return 1
 
     try:
@@ -49,16 +60,27 @@ def main() -> int:
 
     for image_path in image_paths:
         print(f"Testing {image_path.name}")
+        if not image_path.exists():
+            errors += 1
+            print(f"[ERROR] Image not found: {image_path}")
+            print()
+            continue
 
         try:
             result = detector.detect(str(image_path))
+            detections = result.get("detections", [])
+            if detections:
+                labels = ", ".join(detection["label"] for detection in detections)
+                print(f"Detection success: {labels}")
+            else:
+                print("Detection success: no detections")
 
-            if result.get("source") == "grounding_dino":
-                grounding_dino_detections += 1
-            elif result.get("source") == "fallback_yolo":
-                yolo_fallback_detections += 1
-
-            print("Detection success")
+            for detection in detections:
+                model_name = str(detection.get("model", ""))
+                if model_name == "grounding_dino":
+                    grounding_dino_detections += 1
+                elif model_name == "yolo":
+                    yolo_fallback_detections += 1
         except Exception as error:
             errors += 1
             print(f"[ERROR] {error}")

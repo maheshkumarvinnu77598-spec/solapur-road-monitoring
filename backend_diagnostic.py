@@ -227,10 +227,10 @@ def check_detection_api(image_path: Path) -> tuple[bool, str | None]:
             return False, f"/detect returned HTTP {status}"
         if not isinstance(payload, dict):
             return False, "/detect returned invalid JSON."
-        if payload.get("status") == "error":
-            return False, f"/detect reported failure: {payload.get('message', 'unknown error')}"
-        if "detections" not in payload:
-            return False, "/detect response is missing 'detections'."
+        if "issue" not in payload:
+            return False, "/detect response is missing 'issue'."
+        if "boxes" not in payload:
+            return False, "/detect response is missing 'boxes'."
         return True, None
     except urllib.error.HTTPError as error:
         try:
