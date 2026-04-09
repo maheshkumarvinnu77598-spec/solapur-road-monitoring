@@ -17,13 +17,13 @@ detector = HybridRoadDetector()
 
 @router.get("/health")
 async def health() -> dict:
-    grounding_dino_loaded = hasattr(detector, "processor") and hasattr(detector, "hf_model")
-    yolo_loaded = getattr(detector, "yolo_model", None) is not None
+    workflow_client_loaded = getattr(detector, "roboflow_client", None) is not None
     return {
-        "status": "running" if grounding_dino_loaded else "degraded",
-        "grounding_dino_loaded": grounding_dino_loaded,
-        "yolo_loaded": yolo_loaded,
-        "device": detector.device,
+        "status": "running" if workflow_client_loaded else "degraded",
+        "workflow_client_loaded": workflow_client_loaded,
+        "workspace": detector.workspace_name,
+        "workflows": list(detector.workflow_ids),
+        "device": "roboflow-serverless",
     }
 
 

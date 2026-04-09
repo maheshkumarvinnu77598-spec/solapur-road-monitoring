@@ -4,59 +4,39 @@ Install dependency before running:
     pip install inference-sdk
 
 Usage:
-    Set the ROBOFLOW_API_KEY environment variable, then run:
-    python detect.py
+    1. Set the ROBOFLOW_API_KEY environment variable.
+    2. Place `image.jpg` in the project folder.
+    3. Run: python detect.py
 """
 
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
-from inference_sdk import InferenceHTTPClient
+from ml_service import detect_road_issues
 
 
-API_URL = "https://serverless.roboflow.com"
-WORKSPACE_NAME = "tillu-kowkuntla"
-WORKFLOW_ID = "detect-and-classify-2"
-IMAGE_PATH = Path("image.jpg")
+IMAGE_PATH = Path(__file__).resolve().parent / "image.jpg"
 
 
 def main() -> int:
-    api_key = os.getenv("ROBOFLOW_API_KEY", "").strip()
-    if not api_key:
-        print("[ERROR] ROBOFLOW_API_KEY is not set.")
-        print("Set it in your terminal before running: python detect.py")
-        return 1
-
+    # 1. Ensure the local test image exists in the project folder.
     if not IMAGE_PATH.exists():
-        print(f"[ERROR] Image not found: {IMAGE_PATH.resolve()}")
+        print(f"[ERROR] Image not found: {IMAGE_PATH}")
         return 1
 
-    # 1. Import the library.
-    # Done at the top of the file with `from inference_sdk import InferenceHTTPClient`.
+    try:
+        # 2. Run the same trained Roboflow workflow pipeline used by the backend.
+        result = detect_road_issues(str(IMAGE_PATH))
 
-    # 2. Connect to the Roboflow serverless client.
-    client = InferenceHTTPClient(
-        api_url=API_URL,
-        api_key=api_key,
-    )
-
-    # 3. Run the workflow on the local image.
-    result = client.run_workflow(
-        workspace_name=WORKSPACE_NAME,
-        workflow_id=WORKFLOW_ID,
-        images={
-            "image": str(IMAGE_PATH),
-        },
-        use_cache=True,
-    )
-
-    # 4. Print the inference result as formatted JSON.
-    print(json.dumps(result, indent=2))
-    return 0
+        # 3. Print the merged, deduplicated JSON response in the terminal.
+        print(json.dumps(result, indent=2))
+        return 0
+    except Exception as error:
+        print(f"[ERROR] {error}")
+        return 1
 
 
 if __name__ == "__main__":
