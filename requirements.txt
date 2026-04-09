@@ -2,6 +2,7 @@ torch
 torchvision
 transformers
 ultralytics
+inference-sdk
 opencv-python
 pillow
 fastapi

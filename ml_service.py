@@ -1,24 +1,54 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
+import os
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 import torch
 from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
 from ultralytics import YOLO
 
+try:
+    from inference_sdk import InferenceHTTPClient
+except ImportError:
+    InferenceHTTPClient = None  # type: ignore[assignment]
+
+
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_ID = "IDEA-Research/grounding-dino-base"
 POTHOLE_MODEL_PATH = BASE_DIR / "models" / "pretrained" / "pothole_yolo.pt"
-POTHOLE_CONF_THRESHOLD = 0.40
-YOLO_CONF_THRESHOLD = 0.10
+YOLO_FALLBACK_WEIGHTS_PATH = BASE_DIR / "models" / "road_damage" / "weights" / "best.pt"
+
+ROBOFLOW_API_URL = os.getenv("ROBOFLOW_API_URL", "https://serverless.roboflow.com")
+ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "").strip()
+ROBOFLOW_WORKSPACE_NAME = os.getenv("ROBOFLOW_WORKSPACE_NAME", "").strip()
+ROBOFLOW_IMAGE_INPUT_NAME = os.getenv("ROBOFLOW_IMAGE_INPUT_NAME", "image").strip() or "image"
+ROBOFLOW_REQUEST_TIMEOUT_SECONDS = float(
+    os.getenv("ROBOFLOW_REQUEST_TIMEOUT_SECONDS", "1.5")
+)
+
+YOLO_CONF_THRESHOLD = 0.50
 YOLO_IOU_THRESHOLD = 0.45
 YOLO_IMAGE_SIZE = 1280
 GROUNDING_DINO_BOX_THRESHOLD = 0.30
 GROUNDING_DINO_TEXT_THRESHOLD = 0.25
+MIN_DETECTION_CONFIDENCE = 0.50
+LOCAL_YOLO_CONF_THRESHOLD = 0.10
+LOCAL_GROUNDING_DINO_CONF_THRESHOLD = 0.30
+ROBOFLOW_CONF_THRESHOLD = 0.50
+GROUNDING_DINO_CLASS_CONF_THRESHOLDS = {
+    "pothole": 0.30,
+    "water_logging": 0.38,
+    "road_obstruction": 0.35,
+    "broken_streetlight": 0.35,
+}
+
 DINO_TEXT_PROMPT = """
 large pothole in asphalt road.
 pothole filled with water.
@@ -29,29 +59,118 @@ fallen tree blocking road.
 vehicle blocking road.
 object obstructing road.
 """.strip()
-_DETECTORS: dict[tuple[str, float], "HybridRoadDetector"] = {}
+
+ROAD_ISSUE_CLASSES = (
+    "pothole",
+    "water_logging",
+    "road_obstruction",
+    "broken_streetlight",
+)
 DEBUG_LOG_PATH = Path("runs") / "ml_debug_log.json"
+_DETECTORS: dict[tuple[str, float], "HybridRoadDetector"] = {}
+
+
+@dataclass(frozen=True)
+class DetectionModelConfig:
+    name: str
+    workflow_env: str
+    default_workflow_id: str
+    model_source: str
+    local_backend: str
+
+
+ROAD_ISSUE_MODELS = (
+    DetectionModelConfig(
+        name="pothole",
+        workflow_env="ROBOFLOW_POTHOLE_WORKFLOW_ID",
+        default_workflow_id="",
+        model_source="pothole_model",
+        local_backend="pothole_yolo",
+    ),
+    DetectionModelConfig(
+        name="water_logging",
+        workflow_env="ROBOFLOW_WATER_LOGGING_WORKFLOW_ID",
+        default_workflow_id="",
+        model_source="water_logging_model",
+        local_backend="grounding_dino",
+    ),
+    DetectionModelConfig(
+        name="road_obstruction",
+        workflow_env="ROBOFLOW_ROAD_OBSTRUCTION_WORKFLOW_ID",
+        default_workflow_id="",
+        model_source="road_obstruction_model",
+        local_backend="grounding_dino",
+    ),
+    DetectionModelConfig(
+        name="broken_streetlight",
+        workflow_env="ROBOFLOW_BROKEN_STREETLIGHT_WORKFLOW_ID",
+        default_workflow_id="",
+        model_source="broken_streetlight_model",
+        local_backend="grounding_dino",
+    ),
+)
+
+MODEL_CONFIG_BY_CLASS = {config.name: config for config in ROAD_ISSUE_MODELS}
+MODEL_SOURCE_BY_CLASS = {
+    config.name: config.model_source for config in ROAD_ISSUE_MODELS
+}
+DISPLAY_LABELS = {
+    "pothole": "Pothole",
+    "water_logging": "Water Logging",
+    "road_obstruction": "Road Obstruction",
+    "broken_streetlight": "Street Light Not Working",
+}
+RECOMMENDED_ACTIONS = {
+    "HIGH": "Immediate repair required",
+    "MEDIUM": "Schedule field inspection and clear the obstruction",
+    "LOW": "Plan maintenance visit",
+}
 
 
 def get_default_weights_path() -> Path:
-    return BASE_DIR / "models" / "road_damage" / "weights" / "best.pt"
+    return YOLO_FALLBACK_WEIGHTS_PATH
 
 
 class HybridRoadDetector:
-    def __init__(self, weights_path: str | None = None, conf: float = YOLO_CONF_THRESHOLD) -> None:
-        self.weights_path = Path(weights_path) if weights_path is not None else get_default_weights_path()
-        self.pothole_model_path = POTHOLE_MODEL_PATH
-        self.conf = conf
+    def __init__(
+        self,
+        weights_path: str | None = None,
+        conf: float = YOLO_CONF_THRESHOLD,
+    ) -> None:
+        self.weights_path = (
+            Path(weights_path) if weights_path is not None else get_default_weights_path()
+        )
+        self.conf = max(conf, LOCAL_YOLO_CONF_THRESHOLD)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.text_prompt = DINO_TEXT_PROMPT
-        self.using_dedicated_pothole_model = False
-        self.pothole_model: YOLO | None = None
-        self.yolo_model: YOLO | None = None
-
-        print(f"[ML] Running on device: {self.device}")
         self.processor = self._load_processor()
         self.hf_model = self._load_grounding_dino_model()
-        self._load_yolo_model()
+        self.roboflow_client = self._load_roboflow_client()
+        self.pothole_model = self._load_pothole_model()
+        self.yolo_model = self.pothole_model
+
+        print(f"[ML] Running on device: {self.device}")
+
+    def _load_roboflow_client(self):
+        if InferenceHTTPClient is None:
+            print("[ML WARNING] inference_sdk is not installed. Roboflow disabled.")
+            return None
+        if not ROBOFLOW_API_KEY:
+            print("[ML WARNING] ROBOFLOW_API_KEY not set. Roboflow disabled.")
+            return None
+        if not ROBOFLOW_WORKSPACE_NAME:
+            print("[ML WARNING] ROBOFLOW_WORKSPACE_NAME not set. Roboflow disabled.")
+            return None
+
+        try:
+            print("[ML] Roboflow client configured")
+            return InferenceHTTPClient(
+                api_url=ROBOFLOW_API_URL,
+                api_key=ROBOFLOW_API_KEY,
+            )
+        except Exception as error:
+            print(f"[ML WARNING] Failed to initialize Roboflow client: {error}")
+            return None
 
     def _load_processor(self):
         print("[ML] Loading Grounding DINO processor...")
@@ -80,100 +199,57 @@ class HybridRoadDetector:
         model.eval()
         return model
 
-    def _load_yolo_model(self) -> None:
-        candidate_paths = [
-            ("pretrained pothole", self.pothole_model_path),
-            ("fallback road-damage", self.weights_path),
-        ]
-
-        for source_name, candidate_path in candidate_paths:
+    def _load_pothole_model(self) -> YOLO | None:
+        for candidate_path in (POTHOLE_MODEL_PATH, self.weights_path):
             if not candidate_path.exists():
                 continue
 
-            print(f"[ML] Loading YOLO model from {candidate_path} ({source_name})")
+            print(f"[ML] Loading local YOLO model from {candidate_path}")
             try:
                 model = YOLO(str(candidate_path))
             except Exception as error:
-                print(f"[ML WARNING] Failed to load {source_name} model: {error}")
+                print(f"[ML WARNING] Failed to load YOLO model {candidate_path}: {error}")
                 continue
 
-            self.pothole_model = model
-            self.using_dedicated_pothole_model = candidate_path.resolve() == self.pothole_model_path.resolve()
-            self.yolo_model = model
             print("[ML] YOLO loaded successfully")
             print("[ML DEBUG] YOLO class names:", model.names)
-            return
+            return model
 
-        print(
-            "[ML WARNING] No YOLO pothole model available. "
-            f"Checked {self.pothole_model_path} and {self.weights_path}."
-        )
+        print("[ML WARNING] No local YOLO model available for pothole fallback.")
+        return None
 
     def detect(self, image_path: str) -> dict:
+        return self.detect_road_issues(image_path)
+
+    def detect_road_issues(self, image_path: str) -> dict:
         image_name = Path(image_path).name
         started_at = time.perf_counter()
-        print(f"[ML] Running detection on image: {image_name}")
+        print(f"[ML] Running unified detection on image: {image_name}")
         image = self._load_image(image_path)
-        pothole_result = self.detect_pothole(image_path)
-        pothole_detected = False
-        pothole_detections: list[dict] = []
-        pothole_confidence = 0.0
-        pothole_boxes: list[dict] = []
 
-        if pothole_result:
-            pothole_detected = True
-            pothole_detections = list(pothole_result.get("detections", []))
-            pothole_confidence = float(pothole_result.get("confidence", 0.0))
-            pothole_boxes = list(pothole_result.get("boxes", []))
+        roboflow_detections = self._run_roboflow_models(image_path)
+        local_detections = self._run_local_models(image_path, image)
+        detections = self._deduplicate_detections(roboflow_detections + local_detections)
 
-        dino_result = self._run_grounding_dino(image)
-        dino_detections = list(dino_result.get("detections", []))
-        dino_labels = [str(label).lower().strip() for label in dino_result.get("detected_labels", [])]
-        dino_confidence = float(dino_result.get("confidence", 0.0))
-        dino_boxes = list(dino_result.get("boxes", []))
-
-        detected_labels: list[str] = []
-        if pothole_detected:
-            detected_labels.append("pothole")
-        detected_labels.extend(label for label in dino_labels if label)
-
-        detections = self._merge_detections(pothole_detections, dino_detections, image.size)
-        issue = self._classify_issue(detected_labels)
-        selected_detection = self._select_detection_for_issue(detections, issue)
-
-        confidence = max(pothole_confidence, dino_confidence)
-
-        severity = selected_detection.get("severity", "low") if selected_detection is not None else "low"
-        boxes = self._serialize_detection_boxes(detections)
-        if not boxes:
-            boxes = pothole_boxes + dino_boxes
-
-        if pothole_detected and dino_detections:
-            source = "hybrid"
-        elif pothole_detected:
-            source = "pothole_yolo"
-        elif dino_detections:
-            source = "grounding_dino"
-        else:
-            source = "none"
+        summary = self._build_summary(detections)
+        priority = self._determine_priority(summary)
+        recommended_action = self._determine_recommended_action(priority, summary)
 
         result = {
-            "source": source,
-            "issue": issue,
-            "severity": severity,
-            "confidence": round(confidence, 4),
+            "summary": summary,
             "detections": detections,
-            "boxes": boxes,
+            "priority": priority,
+            "recommended_action": recommended_action,
         }
 
-        print(f"[ML] Pothole detections: {len(pothole_detections)}")
-        print(f"[ML] Grounding DINO detections: {len(dino_detections)}")
+        print(f"[ML] Roboflow detections: {len(roboflow_detections)}")
+        print(f"[ML] Local detections: {len(local_detections)}")
         print(f"[ML] Final detections: {len(detections)}")
-        print(f"[ML] Final issue: {result.get('issue')}")
+        print(f"[ML] Priority: {priority}")
 
         self.append_debug_log(
             image_name=image_name,
-            model_used=str(result.get("source", "none")),
+            model_used=self._model_usage_label(roboflow_detections, local_detections),
             detections_count=len(detections),
             processing_time_ms=round((time.perf_counter() - started_at) * 1000),
         )
@@ -218,65 +294,142 @@ class HybridRoadDetector:
         print("[ML] Image size:", image.size)
         return image
 
-    def detect_pothole(self, image_path: str) -> dict | None:
-        if self.pothole_model is None:
-            return None
+    def _run_roboflow_models(self, image_path: str) -> list[dict]:
+        if self.roboflow_client is None:
+            return []
 
-        print("[ML] Running pothole YOLO inference")
+        active_configs = [
+            config for config in ROAD_ISSUE_MODELS if self._resolve_workflow_id(config)
+        ]
+        if not active_configs:
+            return []
+
+        detections: list[dict] = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(len(active_configs), 4)
+        ) as executor:
+            future_map = {
+                executor.submit(self._run_single_roboflow_model, config, image_path): config
+                for config in active_configs
+            }
+            for future, config in [(future, future_map[future]) for future in future_map]:
+                try:
+                    detections.extend(
+                        future.result(timeout=ROBOFLOW_REQUEST_TIMEOUT_SECONDS)
+                    )
+                except concurrent.futures.TimeoutError:
+                    print(f"[ML WARNING] Roboflow timeout for {config.name}")
+                except Exception as error:
+                    print(f"[ML WARNING] Roboflow model {config.name} failed: {error}")
+
+        return detections
+
+    def _run_single_roboflow_model(
+        self,
+        config: DetectionModelConfig,
+        image_path: str,
+    ) -> list[dict]:
+        workflow_id = self._resolve_workflow_id(config)
+        if not workflow_id or self.roboflow_client is None:
+            return []
+
+        print(f"[ML] Running Roboflow workflow for {config.name}")
+        workflow_output = self.roboflow_client.run_workflow(
+            workspace_name=ROBOFLOW_WORKSPACE_NAME,
+            workflow_id=workflow_id,
+            images={ROBOFLOW_IMAGE_INPUT_NAME: image_path},
+            use_cache=True,
+        )
+        return self._extract_workflow_detections(workflow_output, config)
+
+    @staticmethod
+    def _resolve_workflow_id(config: DetectionModelConfig) -> str:
+        return os.getenv(config.workflow_env, config.default_workflow_id).strip()
+
+    def _extract_workflow_detections(
+        self,
+        workflow_output: Any,
+        config: DetectionModelConfig,
+    ) -> list[dict]:
+        detections: list[dict] = []
+
+        def visit(node: Any) -> None:
+            if isinstance(node, dict):
+                bbox = self._extract_bbox(node)
+                confidence = self._safe_float(
+                    node.get("confidence", node.get("score", node.get("confidence_score", 0.0)))
+                )
+                raw_label = self._extract_raw_label(node) or config.name
+                normalized_label = self._normalize_class_name(raw_label) or config.name
+
+                if normalized_label == config.name and confidence >= ROBOFLOW_CONF_THRESHOLD:
+                    detections.append(
+                        self._make_detection(
+                            class_name=config.name,
+                            confidence=confidence,
+                            bbox=bbox,
+                            model_source=config.model_source,
+                            backend="roboflow",
+                        )
+                    )
+
+                for value in node.values():
+                    visit(value)
+                return
+
+            if isinstance(node, list):
+                for item in node:
+                    visit(item)
+
+        visit(workflow_output)
+        return detections
+
+    def _run_local_models(self, image_path: str, image: Image.Image) -> list[dict]:
+        detections: list[dict] = []
+        detections.extend(self._run_local_pothole_model(image_path))
+        detections.extend(self._run_grounding_dino(image))
+        return detections
+
+    def _run_local_pothole_model(self, image_path: str) -> list[dict]:
+        if self.pothole_model is None:
+            return []
+
+        print("[ML] Running local YOLO pothole inference")
         results = self.pothole_model.predict(
             source=image_path,
-            conf=POTHOLE_CONF_THRESHOLD,
+            conf=self.conf,
             iou=YOLO_IOU_THRESHOLD,
             imgsz=YOLO_IMAGE_SIZE,
             verbose=False,
         )
 
         detections: list[dict] = []
-        image_size: tuple[int, int] | None = None
-
         for result in results:
             boxes = result.boxes
-            if image_size is None and getattr(result, "orig_shape", None):
-                image_size = (int(result.orig_shape[1]), int(result.orig_shape[0]))
             if boxes is None:
                 continue
 
             for index in range(len(boxes)):
                 cls_id = int(boxes.cls[index].item())
-                raw_name = self._resolve_model_label(self.pothole_model, cls_id)
-                if not self.using_dedicated_pothole_model and not self._is_pothole_label(raw_name):
+                confidence = float(boxes.conf[index].item())
+                raw_label = self._resolve_model_label(self.pothole_model, cls_id)
+                normalized_label = self._normalize_class_name(raw_label)
+                if normalized_label not in {"pothole", "water_logging"}:
+                    continue
+                if confidence < LOCAL_YOLO_CONF_THRESHOLD:
                     continue
 
-                confidence = float(boxes.conf[index].item())
-                bbox = [round(float(value), 2) for value in boxes.xyxy[index].tolist()]
-                print(f"[ML] Detected Pothole with confidence {confidence:.2f}")
+                bbox = [float(value) for value in boxes.xyxy[index].tolist()]
                 detections.append(
-                    {
-                        "label": "Pothole",
-                        "confidence": confidence,
-                        "bbox": bbox,
-                        "model": "pothole_yolo",
-                    }
+                    self._make_detection(
+                        class_name=normalized_label,
+                        confidence=confidence,
+                        bbox=bbox,
+                        model_source=MODEL_SOURCE_BY_CLASS[normalized_label],
+                        backend="local_yolo",
+                    )
                 )
-
-        if not detections:
-            return None
-
-        if image_size is None:
-            image = self._load_image(image_path)
-            image_size = image.size
-
-        detections = sorted(detections, key=lambda item: float(item.get("confidence", 0.0)), reverse=True)
-        top_detection = detections[0]
-        severity = self._estimate_severity(top_detection["bbox"], image_size)
-        return {
-            "source": "pothole_yolo",
-            "issue": "Pothole",
-            "severity": severity,
-            "confidence": round(float(top_detection.get("confidence", 0.0)), 4),
-            "detections": detections,
-            "boxes": self._serialize_detection_boxes(detections),
-        }
+        return detections
 
     @staticmethod
     def _resolve_model_label(model: YOLO | None, cls_id: int) -> str:
@@ -290,15 +443,9 @@ class HybridRoadDetector:
             raw_name = names[cls_id]
         else:
             raw_name = str(cls_id)
-
         return str(raw_name).replace("_", " ").strip()
 
-    @staticmethod
-    def _is_pothole_label(raw_label: str) -> bool:
-        label = str(raw_label).lower()
-        return any(token in label for token in ["pothole", "hole"])
-
-    def _run_grounding_dino(self, image: Image.Image) -> dict[str, object]:
+    def _run_grounding_dino(self, image: Image.Image) -> list[dict]:
         print("[ML] Running Grounding DINO inference")
         inputs = self.processor(images=image, text=self.text_prompt, return_tensors="pt")
         inputs = {
@@ -312,29 +459,21 @@ class HybridRoadDetector:
         results = self.processor.post_process_grounded_object_detection(
             outputs,
             inputs["input_ids"],
-            # The installed Transformers version uses threshold= for the box score cutoff.
             threshold=GROUNDING_DINO_BOX_THRESHOLD,
             text_threshold=GROUNDING_DINO_TEXT_THRESHOLD,
             target_sizes=[image.size[::-1]],
         )
 
         detections: list[dict] = []
-        detected_labels: list[str] = []
-        boxes: list[dict] = []
-        max_confidence = 0.0
         if not results:
-            return {
-                "detections": detections,
-                "detected_labels": detected_labels,
-                "issue": "Road OK",
-                "confidence": 0.0,
-                "boxes": boxes,
-            }
+            return detections
 
         raw_result = results[0]
         text_labels = raw_result.get("text_labels")
         if text_labels is None:
-            text_labels = [self._decode_grounding_label(label) for label in raw_result["labels"]]
+            text_labels = [
+                self._decode_grounding_label(label) for label in raw_result["labels"]
+            ]
 
         for score, raw_label, box in zip(
             raw_result["scores"],
@@ -342,49 +481,30 @@ class HybridRoadDetector:
             raw_result["boxes"],
         ):
             confidence = float(score)
-            if confidence < 0.30:
+            normalized_label = self._normalize_class_name(raw_label)
+            if normalized_label not in ROAD_ISSUE_CLASSES:
                 continue
-
-            x1, y1, x2, y2 = box.tolist()
-            width = x2 - x1
-            height = y2 - y1
-            img_w, img_h = image.size
-            if width > img_w * 0.8 or height > img_h * 0.8:
-                continue
-
-            label_text = str(raw_label).lower()
-            detected_labels.append(label_text)
-            max_confidence = max(max_confidence, confidence)
-            boxes.append(self._serialize_box([x1, y1, x2, y2]))
-
-            label = self._normalize_issue_label(raw_label)
-            if label is None:
-                continue
-            bbox = [round(float(value), 2) for value in box.tolist()]
-            if not self._passes_geometry_filter(label, bbox, image.size):
-                continue
-            print(f"[ML] Detected {label} with confidence {confidence:.2f}")
-            detections.append(
-                {
-                    "label": label,
-                    "confidence": confidence,
-                    "bbox": bbox,
-                    "model": "grounding_dino",
-                }
+            minimum_confidence = GROUNDING_DINO_CLASS_CONF_THRESHOLDS.get(
+                normalized_label,
+                LOCAL_GROUNDING_DINO_CONF_THRESHOLD,
             )
+            if confidence < minimum_confidence:
+                continue
 
-        issue = self._classify_issue(
-            detected_labels,
-            has_boxes=bool(boxes),
-            fallback_issue=str(detections[0].get("label", "")) if detections else "Road OK",
-        )
-        return {
-            "detections": detections,
-            "detected_labels": detected_labels,
-            "issue": issue,
-            "confidence": max_confidence,
-            "boxes": boxes,
-        }
+            bbox = [float(value) for value in box.tolist()]
+            if not self._passes_geometry_filter(normalized_label, bbox, image.size):
+                continue
+
+            detections.append(
+                self._make_detection(
+                    class_name=normalized_label,
+                    confidence=confidence,
+                    bbox=bbox,
+                    model_source=MODEL_SOURCE_BY_CLASS[normalized_label],
+                    backend="grounding_dino",
+                )
+            )
+        return detections
 
     def _decode_grounding_label(self, label: object) -> str:
         if isinstance(label, str):
@@ -399,78 +519,215 @@ class HybridRoadDetector:
             if hasattr(self.processor, "decode"):
                 decoded = self.processor.decode([raw_value], skip_special_tokens=True).strip()
             else:
-                decoded = self.processor.tokenizer.decode([raw_value], skip_special_tokens=True).strip()
+                decoded = self.processor.tokenizer.decode(
+                    [raw_value],
+                    skip_special_tokens=True,
+                ).strip()
             return decoded or str(raw_value)
         except Exception:
             return str(raw_value)
 
     @staticmethod
-    def _normalize_issue_label(raw_label: object) -> str | None:
+    def _extract_raw_label(node: dict[str, Any]) -> str:
+        for key in (
+            "class",
+            "class_name",
+            "label",
+            "predicted_class",
+            "prediction",
+            "name",
+            "issue",
+        ):
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    @staticmethod
+    def _extract_bbox(node: dict[str, Any]) -> list[float] | None:
+        if {"x", "y", "width", "height"}.issubset(node):
+            x = float(node["x"])
+            y = float(node["y"])
+            width = float(node["width"])
+            height = float(node["height"])
+            return [
+                x - (width / 2.0),
+                y - (height / 2.0),
+                x + (width / 2.0),
+                y + (height / 2.0),
+            ]
+        if {"x1", "y1", "x2", "y2"}.issubset(node):
+            return [
+                float(node["x1"]),
+                float(node["y1"]),
+                float(node["x2"]),
+                float(node["y2"]),
+            ]
+        if {"left", "top", "right", "bottom"}.issubset(node):
+            return [
+                float(node["left"]),
+                float(node["top"]),
+                float(node["right"]),
+                float(node["bottom"]),
+            ]
+        return None
+
+    @staticmethod
+    def _make_detection(
+        class_name: str,
+        confidence: float,
+        bbox: list[float] | None,
+        model_source: str,
+        backend: str,
+    ) -> dict:
+        bbox_payload = HybridRoadDetector._serialize_box(
+            bbox or [0.0, 0.0, 0.0, 0.0]
+        )
+        return {
+            "class": class_name,
+            "confidence": round(float(confidence), 4),
+            "bbox": bbox_payload,
+            "model_source": model_source,
+            "backend": backend,
+        }
+
+    @staticmethod
+    def _normalize_class_name(raw_label: object) -> str | None:
         label = str(raw_label).lower().replace("_", " ").replace("-", " ").strip()
         label = " ".join(label.split())
 
         if not label:
             return None
-        if "pothole" in label:
-            return "Pothole"
         if (
-            "water" in label
-            or "water logging" in label
-            or "flooded road" in label
+            "road damage" in label
+            or "pothole" in label
+            or "hole" in label
+            or "crack" in label
+        ):
+            return "pothole"
+        if (
+            "water logging" in label
+            or "waterlogged" in label
             or "standing water" in label
+            or "flooded road" in label
             or "flood" in label
+            or "water" in label
         ):
-            return "Water Logging"
+            return "water_logging"
         if (
-            "pole" in label
-            or "light" in label
+            "street light" in label
             or "streetlight" in label
-            or "street light" in label
+            or "light pole" in label
+            or "electric pole" in label
+            or "pole" in label
+            or "light" in label
         ):
-            return "Broken Streetlight"
+            return "broken_streetlight"
         if (
-            "tree" in label
-            or "vehicle" in label
-            or "road obstruction" in label
+            "road obstruction" in label
             or "obstructing" in label
             or "obstruction" in label
-            or "blocked road" in label
+            or "fallen tree" in label
+            or "tree" in label
+            or "vehicle" in label
             or "barrier" in label
             or "debris" in label
-            or "fallen tree" in label
             or "block" in label
+            or "object obstructing road" in label
         ):
-            return "Road Obstruction"
-
+            return "road_obstruction"
         return None
 
     @staticmethod
-    def _classify_issue(
-        detected_labels: list[str],
-        has_boxes: bool = False,
-        fallback_issue: str = "Road OK",
-    ) -> str:
-        normalized_labels = [str(label).lower().strip() for label in detected_labels if str(label).strip()]
-        issue = "Road OK"
+    def _build_summary(detections: list[dict]) -> dict:
+        summary = {class_name: False for class_name in ROAD_ISSUE_CLASSES}
+        for detection in detections:
+            class_name = str(detection.get("class", "")).strip()
+            if class_name in summary:
+                summary[class_name] = True
+        return summary
 
-        if any("pothole" in label for label in normalized_labels):
-            issue = "Pothole"
-        elif any(keyword in label for label in normalized_labels for keyword in ["water", "flood"]):
-            issue = "Water Logging"
-        elif any(keyword in label for label in normalized_labels for keyword in ["pole", "light"]):
-            issue = "Broken Streetlight"
-        elif any(
-            keyword in label
-            for label in normalized_labels
-            for keyword in ["tree", "vehicle", "obstruction"]
-        ):
-            issue = "Road Obstruction"
-        elif normalized_labels:
-            issue = fallback_issue or "Road OK"
-        elif has_boxes:
-            issue = fallback_issue or "Road OK"
+    @staticmethod
+    def _determine_priority(summary: dict) -> str:
+        if summary.get("pothole") or summary.get("water_logging"):
+            return "HIGH"
+        if summary.get("road_obstruction"):
+            return "MEDIUM"
+        if summary.get("broken_streetlight"):
+            return "LOW"
+        return "LOW"
 
-        return issue
+    @staticmethod
+    def _determine_recommended_action(priority: str, summary: dict) -> str:
+        if not any(bool(value) for value in summary.values()):
+            return "No immediate action required"
+        return RECOMMENDED_ACTIONS.get(priority, "Review detected issue")
+
+    @staticmethod
+    def _safe_float(value: Any) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _deduplicate_detections(self, detections: list[dict]) -> list[dict]:
+        ranked = sorted(
+            (
+                detection
+                for detection in detections
+                if self._safe_float(detection.get("confidence")) >= self._minimum_confidence_for_backend(
+                    str(detection.get("backend", ""))
+                )
+            ),
+            key=lambda item: self._safe_float(item.get("confidence")),
+            reverse=True,
+        )
+
+        unique: list[dict] = []
+        for detection in ranked:
+            if any(self._is_duplicate_detection(detection, existing) for existing in unique):
+                continue
+            unique.append(detection)
+        return unique
+
+    def _is_duplicate_detection(self, first: dict, second: dict) -> bool:
+        if first.get("class") != second.get("class"):
+            return False
+        return self._bbox_iou(first.get("bbox", {}), second.get("bbox", {})) >= self._duplicate_iou_threshold(
+            str(first.get("class", "")),
+            str(first.get("backend", "")),
+            str(second.get("backend", "")),
+        )
+
+    @staticmethod
+    def _bbox_iou(first: dict, second: dict) -> float:
+        fx1 = float(first.get("x", 0.0))
+        fy1 = float(first.get("y", 0.0))
+        fx2 = fx1 + float(first.get("width", 0.0))
+        fy2 = fy1 + float(first.get("height", 0.0))
+
+        sx1 = float(second.get("x", 0.0))
+        sy1 = float(second.get("y", 0.0))
+        sx2 = sx1 + float(second.get("width", 0.0))
+        sy2 = sy1 + float(second.get("height", 0.0))
+
+        inter_x1 = max(fx1, sx1)
+        inter_y1 = max(fy1, sy1)
+        inter_x2 = min(fx2, sx2)
+        inter_y2 = min(fy2, sy2)
+
+        inter_width = max(0.0, inter_x2 - inter_x1)
+        inter_height = max(0.0, inter_y2 - inter_y1)
+        intersection = inter_width * inter_height
+        if intersection <= 0:
+            return 0.0
+
+        first_area = max(0.0, fx2 - fx1) * max(0.0, fy2 - fy1)
+        second_area = max(0.0, sx2 - sx1) * max(0.0, sy2 - sy1)
+        union = first_area + second_area - intersection
+        if union <= 0:
+            return 0.0
+        return intersection / union
 
     @staticmethod
     def _serialize_box(bbox: list[float]) -> dict:
@@ -484,77 +741,6 @@ class HybridRoadDetector:
             "width": round(max(0.0, x2 - x1), 2),
             "height": round(max(0.0, y2 - y1), 2),
         }
-
-    def _serialize_detection_boxes(self, detections: list[dict]) -> list[dict]:
-        boxes: list[dict] = []
-        for detection in detections:
-            bbox = detection.get("bbox", [])
-            if len(bbox) != 4:
-                continue
-            boxes.append(self._serialize_box([float(value) for value in bbox]))
-        return boxes
-
-    @staticmethod
-    def _select_detection_for_issue(detections: list[dict], issue: str) -> dict | None:
-        issue_tokens = {
-            "Pothole": ["pothole", "hole", "crack"],
-            "Water Logging": ["water", "flood"],
-            "Broken Streetlight": ["pole", "light", "streetlight"],
-            "Road Obstruction": ["tree", "vehicle", "obstruction", "block"],
-        }.get(issue, [issue.lower()])
-
-        for detection in detections:
-            label = str(detection.get("label", "")).lower()
-            if any(token in label for token in issue_tokens):
-                return detection
-
-        return None
-
-    def _merge_detections(
-        self,
-        yolo_detections: list[dict],
-        dino_detections: list[dict],
-        image_size: tuple[int, int],
-    ) -> list[dict]:
-        best_by_label: dict[str, dict] = {}
-
-        for detection in yolo_detections + dino_detections:
-            label = str(detection.get("label", "")).strip()
-            if not label:
-                continue
-
-            enriched = {
-                "label": label,
-                "confidence": round(float(detection.get("confidence", 0.0)), 4),
-                "bbox": [round(float(value), 2) for value in detection.get("bbox", [])[:4]],
-                "model": detection.get("model", "unknown"),
-            }
-            enriched["severity"] = self._estimate_severity(enriched["bbox"], image_size)
-
-            current = best_by_label.get(label)
-            if current is None or self._ranking_score(enriched) > self._ranking_score(current):
-                best_by_label[label] = enriched
-
-        return sorted(best_by_label.values(), key=self._ranking_score, reverse=True)
-
-    def _ranking_score(self, detection: dict) -> float:
-        confidence = float(detection.get("confidence", 0.0))
-        label = str(detection.get("label", ""))
-        model_name = str(detection.get("model", ""))
-        return (
-            confidence
-            + self._issue_priority_bonus(label)
-            + (0.05 if model_name == "yolo" else 0.0)
-        )
-
-    @staticmethod
-    def _issue_priority_bonus(label: str) -> float:
-        return {
-            "Pothole": 0.18,
-            "Water Logging": 0.16,
-            "Road Obstruction": 0.06,
-            "Broken Streetlight": 0.02,
-        }.get(label, 0.0)
 
     @staticmethod
     def _passes_geometry_filter(
@@ -572,76 +758,115 @@ class HybridRoadDetector:
         x1, y1, x2, y2 = [float(value) for value in bbox]
         width = max(1.0, x2 - x1)
         height = max(1.0, y2 - y1)
+
+        if width > image_width * 0.85 or height > image_height * 0.85:
+            return False
+
         area_ratio = (width * height) / float(image_width * image_height)
         aspect_ratio = height / width
         center_y_ratio = ((y1 + y2) / 2.0) / float(image_height)
 
-        if label == "Pothole":
-            return center_y_ratio >= 0.45 and 0.0005 <= area_ratio <= 0.20
-        if label == "Road Surface Damage":
-            return center_y_ratio >= 0.35 and 0.005 <= area_ratio <= 0.45
-        if label == "Water Logging":
-            return center_y_ratio >= 0.45 and area_ratio >= 0.01
-        if label == "Road Obstruction":
-            return center_y_ratio >= 0.35 and aspect_ratio <= 1.80 and area_ratio >= 0.003
-        if label == "Street Light Not Working":
-            return center_y_ratio <= 0.70 and aspect_ratio >= 1.40 and area_ratio <= 0.15
-        if label == "Drainage Blockage":
-            return center_y_ratio >= 0.45 and area_ratio <= 0.08
+        if label == "pothole":
+            return (
+                center_y_ratio >= 0.40
+                and 0.015 <= area_ratio <= 0.20
+                and width >= image_width * 0.05
+                and height >= image_height * 0.04
+            )
+        if label == "water_logging":
+            return (
+                center_y_ratio >= 0.50
+                and area_ratio >= 0.08
+                and width >= image_width * 0.18
+            )
+        if label == "road_obstruction":
+            return center_y_ratio >= 0.25 and area_ratio >= 0.002
+        if label == "broken_streetlight":
+            return (
+                aspect_ratio >= 1.80
+                and area_ratio <= 0.12
+                and height >= image_height * 0.08
+            )
         return True
 
     @staticmethod
-    def _estimate_severity(bbox: list[float], image_size: tuple[int, int]) -> str:
-        if len(bbox) != 4:
-            return "low"
+    def _model_usage_label(roboflow_detections: list[dict], local_detections: list[dict]) -> str:
+        if roboflow_detections and local_detections:
+            return "roboflow+local"
+        if roboflow_detections:
+            return "roboflow"
+        if local_detections:
+            return "local"
+        return "none"
 
-        image_width, image_height = image_size
-        if image_width <= 0 or image_height <= 0:
-            return "low"
+    @staticmethod
+    def _minimum_confidence_for_backend(backend: str) -> float:
+        if backend == "roboflow":
+            return ROBOFLOW_CONF_THRESHOLD
+        if backend == "local_yolo":
+            return LOCAL_YOLO_CONF_THRESHOLD
+        return LOCAL_GROUNDING_DINO_CONF_THRESHOLD
 
-        x1, y1, x2, y2 = [float(value) for value in bbox]
-        width = max(0.0, x2 - x1)
-        height = max(0.0, y2 - y1)
-        area_ratio = (width * height) / float(image_width * image_height)
+    @staticmethod
+    def _duplicate_iou_threshold(
+        class_name: str,
+        first_backend: str,
+        second_backend: str,
+    ) -> float:
+        if class_name == "pothole" and (
+            first_backend == "grounding_dino" or second_backend == "grounding_dino"
+        ):
+            return 0.35
+        return 0.50
 
-        if area_ratio >= 0.10:
-            return "high"
-        if area_ratio >= 0.03:
-            return "medium"
-        return "low"
+
+def _primary_class_from_summary(summary: dict) -> str | None:
+    for class_name in ROAD_ISSUE_CLASSES:
+        if summary.get(class_name):
+            return class_name
+    return None
 
 
 def format_for_flutter(result: dict) -> dict:
+    summary = result.get("summary", {})
     detections = result.get("detections", [])
-    top_detection = detections[0] if detections else {}
-    boxes = list(result.get("boxes", []))
-
-    if not boxes:
-        for detection in detections:
-            bbox = detection.get("bbox", [])
-            if len(bbox) != 4:
-                continue
-
-            x1, y1, x2, y2 = [float(value) for value in bbox]
-            boxes.append(
-                {
-                    "x": round(x1, 2),
-                    "y": round(y1, 2),
-                    "width": round(max(0.0, x2 - x1), 2),
-                    "height": round(max(0.0, y2 - y1), 2),
-                }
-            )
+    priority = str(result.get("priority") or "LOW").upper()
+    primary_class = _primary_class_from_summary(summary)
+    display_issue = DISPLAY_LABELS.get(primary_class or "", "Road OK")
+    confidence = max(
+        (float(detection.get("confidence", 0.0)) for detection in detections),
+        default=0.0,
+    )
+    boxes = [
+        detection.get("bbox", {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0})
+        for detection in detections
+    ]
 
     return {
-        "issue": str(result.get("issue") or top_detection.get("label") or "Road OK"),
-        "severity": str(result.get("severity") or top_detection.get("severity") or "low").lower(),
-        "confidence": round(float(result.get("confidence") or top_detection.get("confidence") or 0.0), 4),
+        "summary": summary,
+        "detections": detections,
+        "priority": priority,
+        "recommended_action": result.get(
+            "recommended_action",
+            "No immediate action required",
+        ),
+        "issue": display_issue,
+        "severity": priority.lower(),
+        "confidence": round(confidence, 4),
         "boxes": boxes,
     }
 
 
-def get_hybrid_detector(weights_path: str, conf: float = YOLO_CONF_THRESHOLD) -> HybridRoadDetector:
+def get_hybrid_detector(
+    weights_path: str,
+    conf: float = YOLO_CONF_THRESHOLD,
+) -> HybridRoadDetector:
     cache_key = (str(Path(weights_path).resolve()), conf)
     if cache_key not in _DETECTORS:
         _DETECTORS[cache_key] = HybridRoadDetector(weights_path=weights_path, conf=conf)
     return _DETECTORS[cache_key]
+
+
+def detect_road_issues(image_path: str) -> dict:
+    detector = get_hybrid_detector(str(get_default_weights_path()))
+    return detector.detect_road_issues(image_path)

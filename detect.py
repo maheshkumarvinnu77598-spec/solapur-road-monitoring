@@ -1,65 +1,61 @@
 #!/usr/bin/env python3
 """
-Hybrid detection pipeline
+Install dependency before running:
+    pip install inference-sdk
 
-Primary model: Grounding DINO (HuggingFace)
-Fallback model: YOLOv8 custom model
+Usage:
+    Set the ROBOFLOW_API_KEY environment variable, then run:
+    python detect.py
 """
 
 from __future__ import annotations
 
-import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-from ml_service import HybridRoadDetector, get_hybrid_detector
+from inference_sdk import InferenceHTTPClient
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Hybrid Road Issue Detection")
-    parser.add_argument("--weights", required=True, help="Path to YOLO best.pt")
-    parser.add_argument("--source", required=True, help="Image source")
-    parser.add_argument("--conf", type=float, default=0.10)
-    return parser.parse_args()
-
-
-def get_yolo_weights_path() -> Path:
-    return Path(__file__).resolve().parent / "models" / "road_damage" / "weights" / "best.pt"
-
-
-def get_model_manager(weights_path: str, conf: float = 0.10) -> HybridRoadDetector:
-    return get_hybrid_detector(weights_path=weights_path, conf=conf)
-
-
-def run_pipeline(image_path: str, weights_path: str, conf: float = 0.10) -> dict:
-    manager = get_model_manager(weights_path=weights_path, conf=conf)
-    return manager.detect(image_path)
+API_URL = "https://serverless.roboflow.com"
+WORKSPACE_NAME = "tillu-kowkuntla"
+WORKFLOW_ID = "detect-and-classify-2"
+IMAGE_PATH = Path("image.jpg")
 
 
 def main() -> int:
-    args = parse_args()
-
-    weights = Path(args.weights)
-    if not weights.exists():
-        expected_root = weights.parent
-        print("[ERROR] YOLO fallback weights not found.")
-        print(f"[ERROR] Expected file: {weights}")
-        print("[ERROR] Expected folder structure:")
-        print(f"{expected_root.parent.parent}/")
-        print("  models/")
-        print("    road_damage/")
-        print("      weights/")
-        print("        best.pt")
+    api_key = os.getenv("ROBOFLOW_API_KEY", "").strip()
+    if not api_key:
+        print("[ERROR] ROBOFLOW_API_KEY is not set.")
+        print("Set it in your terminal before running: python detect.py")
         return 1
 
-    source = Path(args.source)
-    if not source.exists():
-        print(f"[ERROR] Source not found: {source}")
+    if not IMAGE_PATH.exists():
+        print(f"[ERROR] Image not found: {IMAGE_PATH.resolve()}")
         return 1
 
-    results = run_pipeline(str(source), str(weights), args.conf)
-    print(json.dumps(results, indent=2))
+    # 1. Import the library.
+    # Done at the top of the file with `from inference_sdk import InferenceHTTPClient`.
+
+    # 2. Connect to the Roboflow serverless client.
+    client = InferenceHTTPClient(
+        api_url=API_URL,
+        api_key=api_key,
+    )
+
+    # 3. Run the workflow on the local image.
+    result = client.run_workflow(
+        workspace_name=WORKSPACE_NAME,
+        workflow_id=WORKFLOW_ID,
+        images={
+            "image": str(IMAGE_PATH),
+        },
+        use_cache=True,
+    )
+
+    # 4. Print the inference result as formatted JSON.
+    print(json.dumps(result, indent=2))
     return 0
 
 
